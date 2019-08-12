@@ -38037,15 +38037,11904 @@ var config = {
 
 };
 module.exports = config;
-},{"dotenv":"../node_modules/dotenv/lib/main.js"}],"js/utils/api.js":[function(require,module,exports) {
+},{"dotenv":"../node_modules/dotenv/lib/main.js"}],"../node_modules/axios/lib/helpers/bind.js":[function(require,module,exports) {
+'use strict';
+
+module.exports = function bind(fn, thisArg) {
+  return function wrap() {
+    var args = new Array(arguments.length);
+    for (var i = 0; i < args.length; i++) {
+      args[i] = arguments[i];
+    }
+    return fn.apply(thisArg, args);
+  };
+};
+
+},{}],"../node_modules/is-buffer/index.js":[function(require,module,exports) {
+/*!
+ * Determine if an object is a Buffer
+ *
+ * @author   Feross Aboukhadijeh <https://feross.org>
+ * @license  MIT
+ */
+module.exports = function isBuffer(obj) {
+  return obj != null && obj.constructor != null && typeof obj.constructor.isBuffer === 'function' && obj.constructor.isBuffer(obj);
+};
+},{}],"../node_modules/axios/lib/utils.js":[function(require,module,exports) {
+'use strict';
+
+var bind = require('./helpers/bind');
+var isBuffer = require('is-buffer');
+
+/*global toString:true*/
+
+// utils is a library of generic helper functions non-specific to axios
+
+var toString = Object.prototype.toString;
+
+/**
+ * Determine if a value is an Array
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an Array, otherwise false
+ */
+function isArray(val) {
+  return toString.call(val) === '[object Array]';
+}
+
+/**
+ * Determine if a value is an ArrayBuffer
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an ArrayBuffer, otherwise false
+ */
+function isArrayBuffer(val) {
+  return toString.call(val) === '[object ArrayBuffer]';
+}
+
+/**
+ * Determine if a value is a FormData
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an FormData, otherwise false
+ */
+function isFormData(val) {
+  return (typeof FormData !== 'undefined') && (val instanceof FormData);
+}
+
+/**
+ * Determine if a value is a view on an ArrayBuffer
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a view on an ArrayBuffer, otherwise false
+ */
+function isArrayBufferView(val) {
+  var result;
+  if ((typeof ArrayBuffer !== 'undefined') && (ArrayBuffer.isView)) {
+    result = ArrayBuffer.isView(val);
+  } else {
+    result = (val) && (val.buffer) && (val.buffer instanceof ArrayBuffer);
+  }
+  return result;
+}
+
+/**
+ * Determine if a value is a String
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a String, otherwise false
+ */
+function isString(val) {
+  return typeof val === 'string';
+}
+
+/**
+ * Determine if a value is a Number
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Number, otherwise false
+ */
+function isNumber(val) {
+  return typeof val === 'number';
+}
+
+/**
+ * Determine if a value is undefined
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if the value is undefined, otherwise false
+ */
+function isUndefined(val) {
+  return typeof val === 'undefined';
+}
+
+/**
+ * Determine if a value is an Object
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an Object, otherwise false
+ */
+function isObject(val) {
+  return val !== null && typeof val === 'object';
+}
+
+/**
+ * Determine if a value is a Date
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Date, otherwise false
+ */
+function isDate(val) {
+  return toString.call(val) === '[object Date]';
+}
+
+/**
+ * Determine if a value is a File
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a File, otherwise false
+ */
+function isFile(val) {
+  return toString.call(val) === '[object File]';
+}
+
+/**
+ * Determine if a value is a Blob
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Blob, otherwise false
+ */
+function isBlob(val) {
+  return toString.call(val) === '[object Blob]';
+}
+
+/**
+ * Determine if a value is a Function
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Function, otherwise false
+ */
+function isFunction(val) {
+  return toString.call(val) === '[object Function]';
+}
+
+/**
+ * Determine if a value is a Stream
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Stream, otherwise false
+ */
+function isStream(val) {
+  return isObject(val) && isFunction(val.pipe);
+}
+
+/**
+ * Determine if a value is a URLSearchParams object
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a URLSearchParams object, otherwise false
+ */
+function isURLSearchParams(val) {
+  return typeof URLSearchParams !== 'undefined' && val instanceof URLSearchParams;
+}
+
+/**
+ * Trim excess whitespace off the beginning and end of a string
+ *
+ * @param {String} str The String to trim
+ * @returns {String} The String freed of excess whitespace
+ */
+function trim(str) {
+  return str.replace(/^\s*/, '').replace(/\s*$/, '');
+}
+
+/**
+ * Determine if we're running in a standard browser environment
+ *
+ * This allows axios to run in a web worker, and react-native.
+ * Both environments support XMLHttpRequest, but not fully standard globals.
+ *
+ * web workers:
+ *  typeof window -> undefined
+ *  typeof document -> undefined
+ *
+ * react-native:
+ *  navigator.product -> 'ReactNative'
+ * nativescript
+ *  navigator.product -> 'NativeScript' or 'NS'
+ */
+function isStandardBrowserEnv() {
+  if (typeof navigator !== 'undefined' && (navigator.product === 'ReactNative' ||
+                                           navigator.product === 'NativeScript' ||
+                                           navigator.product === 'NS')) {
+    return false;
+  }
+  return (
+    typeof window !== 'undefined' &&
+    typeof document !== 'undefined'
+  );
+}
+
+/**
+ * Iterate over an Array or an Object invoking a function for each item.
+ *
+ * If `obj` is an Array callback will be called passing
+ * the value, index, and complete array for each item.
+ *
+ * If 'obj' is an Object callback will be called passing
+ * the value, key, and complete object for each property.
+ *
+ * @param {Object|Array} obj The object to iterate
+ * @param {Function} fn The callback to invoke for each item
+ */
+function forEach(obj, fn) {
+  // Don't bother if no value provided
+  if (obj === null || typeof obj === 'undefined') {
+    return;
+  }
+
+  // Force an array if not already something iterable
+  if (typeof obj !== 'object') {
+    /*eslint no-param-reassign:0*/
+    obj = [obj];
+  }
+
+  if (isArray(obj)) {
+    // Iterate over array values
+    for (var i = 0, l = obj.length; i < l; i++) {
+      fn.call(null, obj[i], i, obj);
+    }
+  } else {
+    // Iterate over object keys
+    for (var key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        fn.call(null, obj[key], key, obj);
+      }
+    }
+  }
+}
+
+/**
+ * Accepts varargs expecting each argument to be an object, then
+ * immutably merges the properties of each object and returns result.
+ *
+ * When multiple objects contain the same key the later object in
+ * the arguments list will take precedence.
+ *
+ * Example:
+ *
+ * ```js
+ * var result = merge({foo: 123}, {foo: 456});
+ * console.log(result.foo); // outputs 456
+ * ```
+ *
+ * @param {Object} obj1 Object to merge
+ * @returns {Object} Result of all merge properties
+ */
+function merge(/* obj1, obj2, obj3, ... */) {
+  var result = {};
+  function assignValue(val, key) {
+    if (typeof result[key] === 'object' && typeof val === 'object') {
+      result[key] = merge(result[key], val);
+    } else {
+      result[key] = val;
+    }
+  }
+
+  for (var i = 0, l = arguments.length; i < l; i++) {
+    forEach(arguments[i], assignValue);
+  }
+  return result;
+}
+
+/**
+ * Function equal to merge with the difference being that no reference
+ * to original objects is kept.
+ *
+ * @see merge
+ * @param {Object} obj1 Object to merge
+ * @returns {Object} Result of all merge properties
+ */
+function deepMerge(/* obj1, obj2, obj3, ... */) {
+  var result = {};
+  function assignValue(val, key) {
+    if (typeof result[key] === 'object' && typeof val === 'object') {
+      result[key] = deepMerge(result[key], val);
+    } else if (typeof val === 'object') {
+      result[key] = deepMerge({}, val);
+    } else {
+      result[key] = val;
+    }
+  }
+
+  for (var i = 0, l = arguments.length; i < l; i++) {
+    forEach(arguments[i], assignValue);
+  }
+  return result;
+}
+
+/**
+ * Extends object a by mutably adding to it the properties of object b.
+ *
+ * @param {Object} a The object to be extended
+ * @param {Object} b The object to copy properties from
+ * @param {Object} thisArg The object to bind function to
+ * @return {Object} The resulting value of object a
+ */
+function extend(a, b, thisArg) {
+  forEach(b, function assignValue(val, key) {
+    if (thisArg && typeof val === 'function') {
+      a[key] = bind(val, thisArg);
+    } else {
+      a[key] = val;
+    }
+  });
+  return a;
+}
+
+module.exports = {
+  isArray: isArray,
+  isArrayBuffer: isArrayBuffer,
+  isBuffer: isBuffer,
+  isFormData: isFormData,
+  isArrayBufferView: isArrayBufferView,
+  isString: isString,
+  isNumber: isNumber,
+  isObject: isObject,
+  isUndefined: isUndefined,
+  isDate: isDate,
+  isFile: isFile,
+  isBlob: isBlob,
+  isFunction: isFunction,
+  isStream: isStream,
+  isURLSearchParams: isURLSearchParams,
+  isStandardBrowserEnv: isStandardBrowserEnv,
+  forEach: forEach,
+  merge: merge,
+  deepMerge: deepMerge,
+  extend: extend,
+  trim: trim
+};
+
+},{"./helpers/bind":"../node_modules/axios/lib/helpers/bind.js","is-buffer":"../node_modules/is-buffer/index.js"}],"../node_modules/axios/lib/helpers/buildURL.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./../utils');
+
+function encode(val) {
+  return encodeURIComponent(val).
+    replace(/%40/gi, '@').
+    replace(/%3A/gi, ':').
+    replace(/%24/g, '$').
+    replace(/%2C/gi, ',').
+    replace(/%20/g, '+').
+    replace(/%5B/gi, '[').
+    replace(/%5D/gi, ']');
+}
+
+/**
+ * Build a URL by appending params to the end
+ *
+ * @param {string} url The base of the url (e.g., http://www.google.com)
+ * @param {object} [params] The params to be appended
+ * @returns {string} The formatted url
+ */
+module.exports = function buildURL(url, params, paramsSerializer) {
+  /*eslint no-param-reassign:0*/
+  if (!params) {
+    return url;
+  }
+
+  var serializedParams;
+  if (paramsSerializer) {
+    serializedParams = paramsSerializer(params);
+  } else if (utils.isURLSearchParams(params)) {
+    serializedParams = params.toString();
+  } else {
+    var parts = [];
+
+    utils.forEach(params, function serialize(val, key) {
+      if (val === null || typeof val === 'undefined') {
+        return;
+      }
+
+      if (utils.isArray(val)) {
+        key = key + '[]';
+      } else {
+        val = [val];
+      }
+
+      utils.forEach(val, function parseValue(v) {
+        if (utils.isDate(v)) {
+          v = v.toISOString();
+        } else if (utils.isObject(v)) {
+          v = JSON.stringify(v);
+        }
+        parts.push(encode(key) + '=' + encode(v));
+      });
+    });
+
+    serializedParams = parts.join('&');
+  }
+
+  if (serializedParams) {
+    var hashmarkIndex = url.indexOf('#');
+    if (hashmarkIndex !== -1) {
+      url = url.slice(0, hashmarkIndex);
+    }
+
+    url += (url.indexOf('?') === -1 ? '?' : '&') + serializedParams;
+  }
+
+  return url;
+};
+
+},{"./../utils":"../node_modules/axios/lib/utils.js"}],"../node_modules/axios/lib/core/InterceptorManager.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./../utils');
+
+function InterceptorManager() {
+  this.handlers = [];
+}
+
+/**
+ * Add a new interceptor to the stack
+ *
+ * @param {Function} fulfilled The function to handle `then` for a `Promise`
+ * @param {Function} rejected The function to handle `reject` for a `Promise`
+ *
+ * @return {Number} An ID used to remove interceptor later
+ */
+InterceptorManager.prototype.use = function use(fulfilled, rejected) {
+  this.handlers.push({
+    fulfilled: fulfilled,
+    rejected: rejected
+  });
+  return this.handlers.length - 1;
+};
+
+/**
+ * Remove an interceptor from the stack
+ *
+ * @param {Number} id The ID that was returned by `use`
+ */
+InterceptorManager.prototype.eject = function eject(id) {
+  if (this.handlers[id]) {
+    this.handlers[id] = null;
+  }
+};
+
+/**
+ * Iterate over all the registered interceptors
+ *
+ * This method is particularly useful for skipping over any
+ * interceptors that may have become `null` calling `eject`.
+ *
+ * @param {Function} fn The function to call for each interceptor
+ */
+InterceptorManager.prototype.forEach = function forEach(fn) {
+  utils.forEach(this.handlers, function forEachHandler(h) {
+    if (h !== null) {
+      fn(h);
+    }
+  });
+};
+
+module.exports = InterceptorManager;
+
+},{"./../utils":"../node_modules/axios/lib/utils.js"}],"../node_modules/axios/lib/core/transformData.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./../utils');
+
+/**
+ * Transform the data for a request or a response
+ *
+ * @param {Object|String} data The data to be transformed
+ * @param {Array} headers The headers for the request or response
+ * @param {Array|Function} fns A single function or Array of functions
+ * @returns {*} The resulting transformed data
+ */
+module.exports = function transformData(data, headers, fns) {
+  /*eslint no-param-reassign:0*/
+  utils.forEach(fns, function transform(fn) {
+    data = fn(data, headers);
+  });
+
+  return data;
+};
+
+},{"./../utils":"../node_modules/axios/lib/utils.js"}],"../node_modules/axios/lib/cancel/isCancel.js":[function(require,module,exports) {
+'use strict';
+
+module.exports = function isCancel(value) {
+  return !!(value && value.__CANCEL__);
+};
+
+},{}],"../node_modules/axios/lib/helpers/normalizeHeaderName.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('../utils');
+
+module.exports = function normalizeHeaderName(headers, normalizedName) {
+  utils.forEach(headers, function processHeader(value, name) {
+    if (name !== normalizedName && name.toUpperCase() === normalizedName.toUpperCase()) {
+      headers[normalizedName] = value;
+      delete headers[name];
+    }
+  });
+};
+
+},{"../utils":"../node_modules/axios/lib/utils.js"}],"../node_modules/axios/lib/core/enhanceError.js":[function(require,module,exports) {
+'use strict';
+
+/**
+ * Update an Error with the specified config, error code, and response.
+ *
+ * @param {Error} error The error to update.
+ * @param {Object} config The config.
+ * @param {string} [code] The error code (for example, 'ECONNABORTED').
+ * @param {Object} [request] The request.
+ * @param {Object} [response] The response.
+ * @returns {Error} The error.
+ */
+module.exports = function enhanceError(error, config, code, request, response) {
+  error.config = config;
+  if (code) {
+    error.code = code;
+  }
+
+  error.request = request;
+  error.response = response;
+  error.isAxiosError = true;
+
+  error.toJSON = function() {
+    return {
+      // Standard
+      message: this.message,
+      name: this.name,
+      // Microsoft
+      description: this.description,
+      number: this.number,
+      // Mozilla
+      fileName: this.fileName,
+      lineNumber: this.lineNumber,
+      columnNumber: this.columnNumber,
+      stack: this.stack,
+      // Axios
+      config: this.config,
+      code: this.code
+    };
+  };
+  return error;
+};
+
+},{}],"../node_modules/axios/lib/core/createError.js":[function(require,module,exports) {
+'use strict';
+
+var enhanceError = require('./enhanceError');
+
+/**
+ * Create an Error with the specified message, config, error code, request and response.
+ *
+ * @param {string} message The error message.
+ * @param {Object} config The config.
+ * @param {string} [code] The error code (for example, 'ECONNABORTED').
+ * @param {Object} [request] The request.
+ * @param {Object} [response] The response.
+ * @returns {Error} The created error.
+ */
+module.exports = function createError(message, config, code, request, response) {
+  var error = new Error(message);
+  return enhanceError(error, config, code, request, response);
+};
+
+},{"./enhanceError":"../node_modules/axios/lib/core/enhanceError.js"}],"../node_modules/axios/lib/core/settle.js":[function(require,module,exports) {
+'use strict';
+
+var createError = require('./createError');
+
+/**
+ * Resolve or reject a Promise based on response status.
+ *
+ * @param {Function} resolve A function that resolves the promise.
+ * @param {Function} reject A function that rejects the promise.
+ * @param {object} response The response.
+ */
+module.exports = function settle(resolve, reject, response) {
+  var validateStatus = response.config.validateStatus;
+  if (!validateStatus || validateStatus(response.status)) {
+    resolve(response);
+  } else {
+    reject(createError(
+      'Request failed with status code ' + response.status,
+      response.config,
+      null,
+      response.request,
+      response
+    ));
+  }
+};
+
+},{"./createError":"../node_modules/axios/lib/core/createError.js"}],"../node_modules/axios/lib/helpers/parseHeaders.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./../utils');
+
+// Headers whose duplicates are ignored by node
+// c.f. https://nodejs.org/api/http.html#http_message_headers
+var ignoreDuplicateOf = [
+  'age', 'authorization', 'content-length', 'content-type', 'etag',
+  'expires', 'from', 'host', 'if-modified-since', 'if-unmodified-since',
+  'last-modified', 'location', 'max-forwards', 'proxy-authorization',
+  'referer', 'retry-after', 'user-agent'
+];
+
+/**
+ * Parse headers into an object
+ *
+ * ```
+ * Date: Wed, 27 Aug 2014 08:58:49 GMT
+ * Content-Type: application/json
+ * Connection: keep-alive
+ * Transfer-Encoding: chunked
+ * ```
+ *
+ * @param {String} headers Headers needing to be parsed
+ * @returns {Object} Headers parsed into an object
+ */
+module.exports = function parseHeaders(headers) {
+  var parsed = {};
+  var key;
+  var val;
+  var i;
+
+  if (!headers) { return parsed; }
+
+  utils.forEach(headers.split('\n'), function parser(line) {
+    i = line.indexOf(':');
+    key = utils.trim(line.substr(0, i)).toLowerCase();
+    val = utils.trim(line.substr(i + 1));
+
+    if (key) {
+      if (parsed[key] && ignoreDuplicateOf.indexOf(key) >= 0) {
+        return;
+      }
+      if (key === 'set-cookie') {
+        parsed[key] = (parsed[key] ? parsed[key] : []).concat([val]);
+      } else {
+        parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
+      }
+    }
+  });
+
+  return parsed;
+};
+
+},{"./../utils":"../node_modules/axios/lib/utils.js"}],"../node_modules/axios/lib/helpers/isURLSameOrigin.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./../utils');
+
+module.exports = (
+  utils.isStandardBrowserEnv() ?
+
+  // Standard browser envs have full support of the APIs needed to test
+  // whether the request URL is of the same origin as current location.
+    (function standardBrowserEnv() {
+      var msie = /(msie|trident)/i.test(navigator.userAgent);
+      var urlParsingNode = document.createElement('a');
+      var originURL;
+
+      /**
+    * Parse a URL to discover it's components
+    *
+    * @param {String} url The URL to be parsed
+    * @returns {Object}
+    */
+      function resolveURL(url) {
+        var href = url;
+
+        if (msie) {
+        // IE needs attribute set twice to normalize properties
+          urlParsingNode.setAttribute('href', href);
+          href = urlParsingNode.href;
+        }
+
+        urlParsingNode.setAttribute('href', href);
+
+        // urlParsingNode provides the UrlUtils interface - http://url.spec.whatwg.org/#urlutils
+        return {
+          href: urlParsingNode.href,
+          protocol: urlParsingNode.protocol ? urlParsingNode.protocol.replace(/:$/, '') : '',
+          host: urlParsingNode.host,
+          search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
+          hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
+          hostname: urlParsingNode.hostname,
+          port: urlParsingNode.port,
+          pathname: (urlParsingNode.pathname.charAt(0) === '/') ?
+            urlParsingNode.pathname :
+            '/' + urlParsingNode.pathname
+        };
+      }
+
+      originURL = resolveURL(window.location.href);
+
+      /**
+    * Determine if a URL shares the same origin as the current location
+    *
+    * @param {String} requestURL The URL to test
+    * @returns {boolean} True if URL shares the same origin, otherwise false
+    */
+      return function isURLSameOrigin(requestURL) {
+        var parsed = (utils.isString(requestURL)) ? resolveURL(requestURL) : requestURL;
+        return (parsed.protocol === originURL.protocol &&
+            parsed.host === originURL.host);
+      };
+    })() :
+
+  // Non standard browser envs (web workers, react-native) lack needed support.
+    (function nonStandardBrowserEnv() {
+      return function isURLSameOrigin() {
+        return true;
+      };
+    })()
+);
+
+},{"./../utils":"../node_modules/axios/lib/utils.js"}],"../node_modules/axios/lib/helpers/cookies.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./../utils');
+
+module.exports = (
+  utils.isStandardBrowserEnv() ?
+
+  // Standard browser envs support document.cookie
+    (function standardBrowserEnv() {
+      return {
+        write: function write(name, value, expires, path, domain, secure) {
+          var cookie = [];
+          cookie.push(name + '=' + encodeURIComponent(value));
+
+          if (utils.isNumber(expires)) {
+            cookie.push('expires=' + new Date(expires).toGMTString());
+          }
+
+          if (utils.isString(path)) {
+            cookie.push('path=' + path);
+          }
+
+          if (utils.isString(domain)) {
+            cookie.push('domain=' + domain);
+          }
+
+          if (secure === true) {
+            cookie.push('secure');
+          }
+
+          document.cookie = cookie.join('; ');
+        },
+
+        read: function read(name) {
+          var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+          return (match ? decodeURIComponent(match[3]) : null);
+        },
+
+        remove: function remove(name) {
+          this.write(name, '', Date.now() - 86400000);
+        }
+      };
+    })() :
+
+  // Non standard browser env (web workers, react-native) lack needed support.
+    (function nonStandardBrowserEnv() {
+      return {
+        write: function write() {},
+        read: function read() { return null; },
+        remove: function remove() {}
+      };
+    })()
+);
+
+},{"./../utils":"../node_modules/axios/lib/utils.js"}],"../node_modules/axios/lib/adapters/xhr.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./../utils');
+var settle = require('./../core/settle');
+var buildURL = require('./../helpers/buildURL');
+var parseHeaders = require('./../helpers/parseHeaders');
+var isURLSameOrigin = require('./../helpers/isURLSameOrigin');
+var createError = require('../core/createError');
+
+module.exports = function xhrAdapter(config) {
+  return new Promise(function dispatchXhrRequest(resolve, reject) {
+    var requestData = config.data;
+    var requestHeaders = config.headers;
+
+    if (utils.isFormData(requestData)) {
+      delete requestHeaders['Content-Type']; // Let the browser set it
+    }
+
+    var request = new XMLHttpRequest();
+
+    // HTTP basic authentication
+    if (config.auth) {
+      var username = config.auth.username || '';
+      var password = config.auth.password || '';
+      requestHeaders.Authorization = 'Basic ' + btoa(username + ':' + password);
+    }
+
+    request.open(config.method.toUpperCase(), buildURL(config.url, config.params, config.paramsSerializer), true);
+
+    // Set the request timeout in MS
+    request.timeout = config.timeout;
+
+    // Listen for ready state
+    request.onreadystatechange = function handleLoad() {
+      if (!request || request.readyState !== 4) {
+        return;
+      }
+
+      // The request errored out and we didn't get a response, this will be
+      // handled by onerror instead
+      // With one exception: request that using file: protocol, most browsers
+      // will return status as 0 even though it's a successful request
+      if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
+        return;
+      }
+
+      // Prepare the response
+      var responseHeaders = 'getAllResponseHeaders' in request ? parseHeaders(request.getAllResponseHeaders()) : null;
+      var responseData = !config.responseType || config.responseType === 'text' ? request.responseText : request.response;
+      var response = {
+        data: responseData,
+        status: request.status,
+        statusText: request.statusText,
+        headers: responseHeaders,
+        config: config,
+        request: request
+      };
+
+      settle(resolve, reject, response);
+
+      // Clean up request
+      request = null;
+    };
+
+    // Handle browser request cancellation (as opposed to a manual cancellation)
+    request.onabort = function handleAbort() {
+      if (!request) {
+        return;
+      }
+
+      reject(createError('Request aborted', config, 'ECONNABORTED', request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Handle low level network errors
+    request.onerror = function handleError() {
+      // Real errors are hidden from us by the browser
+      // onerror should only fire if it's a network error
+      reject(createError('Network Error', config, null, request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Handle timeout
+    request.ontimeout = function handleTimeout() {
+      reject(createError('timeout of ' + config.timeout + 'ms exceeded', config, 'ECONNABORTED',
+        request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Add xsrf header
+    // This is only done if running in a standard browser environment.
+    // Specifically not if we're in a web worker, or react-native.
+    if (utils.isStandardBrowserEnv()) {
+      var cookies = require('./../helpers/cookies');
+
+      // Add xsrf header
+      var xsrfValue = (config.withCredentials || isURLSameOrigin(config.url)) && config.xsrfCookieName ?
+        cookies.read(config.xsrfCookieName) :
+        undefined;
+
+      if (xsrfValue) {
+        requestHeaders[config.xsrfHeaderName] = xsrfValue;
+      }
+    }
+
+    // Add headers to the request
+    if ('setRequestHeader' in request) {
+      utils.forEach(requestHeaders, function setRequestHeader(val, key) {
+        if (typeof requestData === 'undefined' && key.toLowerCase() === 'content-type') {
+          // Remove Content-Type if data is undefined
+          delete requestHeaders[key];
+        } else {
+          // Otherwise add header to the request
+          request.setRequestHeader(key, val);
+        }
+      });
+    }
+
+    // Add withCredentials to request if needed
+    if (config.withCredentials) {
+      request.withCredentials = true;
+    }
+
+    // Add responseType to request if needed
+    if (config.responseType) {
+      try {
+        request.responseType = config.responseType;
+      } catch (e) {
+        // Expected DOMException thrown by browsers not compatible XMLHttpRequest Level 2.
+        // But, this can be suppressed for 'json' type as it can be parsed by default 'transformResponse' function.
+        if (config.responseType !== 'json') {
+          throw e;
+        }
+      }
+    }
+
+    // Handle progress if needed
+    if (typeof config.onDownloadProgress === 'function') {
+      request.addEventListener('progress', config.onDownloadProgress);
+    }
+
+    // Not all browsers support upload events
+    if (typeof config.onUploadProgress === 'function' && request.upload) {
+      request.upload.addEventListener('progress', config.onUploadProgress);
+    }
+
+    if (config.cancelToken) {
+      // Handle cancellation
+      config.cancelToken.promise.then(function onCanceled(cancel) {
+        if (!request) {
+          return;
+        }
+
+        request.abort();
+        reject(cancel);
+        // Clean up request
+        request = null;
+      });
+    }
+
+    if (requestData === undefined) {
+      requestData = null;
+    }
+
+    // Send the request
+    request.send(requestData);
+  });
+};
+
+},{"./../utils":"../node_modules/axios/lib/utils.js","./../core/settle":"../node_modules/axios/lib/core/settle.js","./../helpers/buildURL":"../node_modules/axios/lib/helpers/buildURL.js","./../helpers/parseHeaders":"../node_modules/axios/lib/helpers/parseHeaders.js","./../helpers/isURLSameOrigin":"../node_modules/axios/lib/helpers/isURLSameOrigin.js","../core/createError":"../node_modules/axios/lib/core/createError.js","./../helpers/cookies":"../node_modules/axios/lib/helpers/cookies.js"}],"../node_modules/axios/lib/defaults.js":[function(require,module,exports) {
+var process = require("process");
+'use strict';
+
+var utils = require('./utils');
+var normalizeHeaderName = require('./helpers/normalizeHeaderName');
+
+var DEFAULT_CONTENT_TYPE = {
+  'Content-Type': 'application/x-www-form-urlencoded'
+};
+
+function setContentTypeIfUnset(headers, value) {
+  if (!utils.isUndefined(headers) && utils.isUndefined(headers['Content-Type'])) {
+    headers['Content-Type'] = value;
+  }
+}
+
+function getDefaultAdapter() {
+  var adapter;
+  // Only Node.JS has a process variable that is of [[Class]] process
+  if (typeof process !== 'undefined' && Object.prototype.toString.call(process) === '[object process]') {
+    // For node use HTTP adapter
+    adapter = require('./adapters/http');
+  } else if (typeof XMLHttpRequest !== 'undefined') {
+    // For browsers use XHR adapter
+    adapter = require('./adapters/xhr');
+  }
+  return adapter;
+}
+
+var defaults = {
+  adapter: getDefaultAdapter(),
+
+  transformRequest: [function transformRequest(data, headers) {
+    normalizeHeaderName(headers, 'Accept');
+    normalizeHeaderName(headers, 'Content-Type');
+    if (utils.isFormData(data) ||
+      utils.isArrayBuffer(data) ||
+      utils.isBuffer(data) ||
+      utils.isStream(data) ||
+      utils.isFile(data) ||
+      utils.isBlob(data)
+    ) {
+      return data;
+    }
+    if (utils.isArrayBufferView(data)) {
+      return data.buffer;
+    }
+    if (utils.isURLSearchParams(data)) {
+      setContentTypeIfUnset(headers, 'application/x-www-form-urlencoded;charset=utf-8');
+      return data.toString();
+    }
+    if (utils.isObject(data)) {
+      setContentTypeIfUnset(headers, 'application/json;charset=utf-8');
+      return JSON.stringify(data);
+    }
+    return data;
+  }],
+
+  transformResponse: [function transformResponse(data) {
+    /*eslint no-param-reassign:0*/
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch (e) { /* Ignore */ }
+    }
+    return data;
+  }],
+
+  /**
+   * A timeout in milliseconds to abort a request. If set to 0 (default) a
+   * timeout is not created.
+   */
+  timeout: 0,
+
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+
+  maxContentLength: -1,
+
+  validateStatus: function validateStatus(status) {
+    return status >= 200 && status < 300;
+  }
+};
+
+defaults.headers = {
+  common: {
+    'Accept': 'application/json, text/plain, */*'
+  }
+};
+
+utils.forEach(['delete', 'get', 'head'], function forEachMethodNoData(method) {
+  defaults.headers[method] = {};
+});
+
+utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+  defaults.headers[method] = utils.merge(DEFAULT_CONTENT_TYPE);
+});
+
+module.exports = defaults;
+
+},{"./utils":"../node_modules/axios/lib/utils.js","./helpers/normalizeHeaderName":"../node_modules/axios/lib/helpers/normalizeHeaderName.js","./adapters/http":"../node_modules/axios/lib/adapters/xhr.js","./adapters/xhr":"../node_modules/axios/lib/adapters/xhr.js","process":"../node_modules/process/browser.js"}],"../node_modules/axios/lib/helpers/isAbsoluteURL.js":[function(require,module,exports) {
+'use strict';
+
+/**
+ * Determines whether the specified URL is absolute
+ *
+ * @param {string} url The URL to test
+ * @returns {boolean} True if the specified URL is absolute, otherwise false
+ */
+module.exports = function isAbsoluteURL(url) {
+  // A URL is considered absolute if it begins with "<scheme>://" or "//" (protocol-relative URL).
+  // RFC 3986 defines scheme name as a sequence of characters beginning with a letter and followed
+  // by any combination of letters, digits, plus, period, or hyphen.
+  return /^([a-z][a-z\d\+\-\.]*:)?\/\//i.test(url);
+};
+
+},{}],"../node_modules/axios/lib/helpers/combineURLs.js":[function(require,module,exports) {
+'use strict';
+
+/**
+ * Creates a new URL by combining the specified URLs
+ *
+ * @param {string} baseURL The base URL
+ * @param {string} relativeURL The relative URL
+ * @returns {string} The combined URL
+ */
+module.exports = function combineURLs(baseURL, relativeURL) {
+  return relativeURL
+    ? baseURL.replace(/\/+$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+    : baseURL;
+};
+
+},{}],"../node_modules/axios/lib/core/dispatchRequest.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./../utils');
+var transformData = require('./transformData');
+var isCancel = require('../cancel/isCancel');
+var defaults = require('../defaults');
+var isAbsoluteURL = require('./../helpers/isAbsoluteURL');
+var combineURLs = require('./../helpers/combineURLs');
+
+/**
+ * Throws a `Cancel` if cancellation has been requested.
+ */
+function throwIfCancellationRequested(config) {
+  if (config.cancelToken) {
+    config.cancelToken.throwIfRequested();
+  }
+}
+
+/**
+ * Dispatch a request to the server using the configured adapter.
+ *
+ * @param {object} config The config that is to be used for the request
+ * @returns {Promise} The Promise to be fulfilled
+ */
+module.exports = function dispatchRequest(config) {
+  throwIfCancellationRequested(config);
+
+  // Support baseURL config
+  if (config.baseURL && !isAbsoluteURL(config.url)) {
+    config.url = combineURLs(config.baseURL, config.url);
+  }
+
+  // Ensure headers exist
+  config.headers = config.headers || {};
+
+  // Transform request data
+  config.data = transformData(
+    config.data,
+    config.headers,
+    config.transformRequest
+  );
+
+  // Flatten headers
+  config.headers = utils.merge(
+    config.headers.common || {},
+    config.headers[config.method] || {},
+    config.headers || {}
+  );
+
+  utils.forEach(
+    ['delete', 'get', 'head', 'post', 'put', 'patch', 'common'],
+    function cleanHeaderConfig(method) {
+      delete config.headers[method];
+    }
+  );
+
+  var adapter = config.adapter || defaults.adapter;
+
+  return adapter(config).then(function onAdapterResolution(response) {
+    throwIfCancellationRequested(config);
+
+    // Transform response data
+    response.data = transformData(
+      response.data,
+      response.headers,
+      config.transformResponse
+    );
+
+    return response;
+  }, function onAdapterRejection(reason) {
+    if (!isCancel(reason)) {
+      throwIfCancellationRequested(config);
+
+      // Transform response data
+      if (reason && reason.response) {
+        reason.response.data = transformData(
+          reason.response.data,
+          reason.response.headers,
+          config.transformResponse
+        );
+      }
+    }
+
+    return Promise.reject(reason);
+  });
+};
+
+},{"./../utils":"../node_modules/axios/lib/utils.js","./transformData":"../node_modules/axios/lib/core/transformData.js","../cancel/isCancel":"../node_modules/axios/lib/cancel/isCancel.js","../defaults":"../node_modules/axios/lib/defaults.js","./../helpers/isAbsoluteURL":"../node_modules/axios/lib/helpers/isAbsoluteURL.js","./../helpers/combineURLs":"../node_modules/axios/lib/helpers/combineURLs.js"}],"../node_modules/axios/lib/core/mergeConfig.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('../utils');
+
+/**
+ * Config-specific merge-function which creates a new config-object
+ * by merging two configuration objects together.
+ *
+ * @param {Object} config1
+ * @param {Object} config2
+ * @returns {Object} New object resulting from merging config2 to config1
+ */
+module.exports = function mergeConfig(config1, config2) {
+  // eslint-disable-next-line no-param-reassign
+  config2 = config2 || {};
+  var config = {};
+
+  utils.forEach(['url', 'method', 'params', 'data'], function valueFromConfig2(prop) {
+    if (typeof config2[prop] !== 'undefined') {
+      config[prop] = config2[prop];
+    }
+  });
+
+  utils.forEach(['headers', 'auth', 'proxy'], function mergeDeepProperties(prop) {
+    if (utils.isObject(config2[prop])) {
+      config[prop] = utils.deepMerge(config1[prop], config2[prop]);
+    } else if (typeof config2[prop] !== 'undefined') {
+      config[prop] = config2[prop];
+    } else if (utils.isObject(config1[prop])) {
+      config[prop] = utils.deepMerge(config1[prop]);
+    } else if (typeof config1[prop] !== 'undefined') {
+      config[prop] = config1[prop];
+    }
+  });
+
+  utils.forEach([
+    'baseURL', 'transformRequest', 'transformResponse', 'paramsSerializer',
+    'timeout', 'withCredentials', 'adapter', 'responseType', 'xsrfCookieName',
+    'xsrfHeaderName', 'onUploadProgress', 'onDownloadProgress', 'maxContentLength',
+    'validateStatus', 'maxRedirects', 'httpAgent', 'httpsAgent', 'cancelToken',
+    'socketPath'
+  ], function defaultToConfig2(prop) {
+    if (typeof config2[prop] !== 'undefined') {
+      config[prop] = config2[prop];
+    } else if (typeof config1[prop] !== 'undefined') {
+      config[prop] = config1[prop];
+    }
+  });
+
+  return config;
+};
+
+},{"../utils":"../node_modules/axios/lib/utils.js"}],"../node_modules/axios/lib/core/Axios.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./../utils');
+var buildURL = require('../helpers/buildURL');
+var InterceptorManager = require('./InterceptorManager');
+var dispatchRequest = require('./dispatchRequest');
+var mergeConfig = require('./mergeConfig');
+
+/**
+ * Create a new instance of Axios
+ *
+ * @param {Object} instanceConfig The default config for the instance
+ */
+function Axios(instanceConfig) {
+  this.defaults = instanceConfig;
+  this.interceptors = {
+    request: new InterceptorManager(),
+    response: new InterceptorManager()
+  };
+}
+
+/**
+ * Dispatch a request
+ *
+ * @param {Object} config The config specific for this request (merged with this.defaults)
+ */
+Axios.prototype.request = function request(config) {
+  /*eslint no-param-reassign:0*/
+  // Allow for axios('example/url'[, config]) a la fetch API
+  if (typeof config === 'string') {
+    config = arguments[1] || {};
+    config.url = arguments[0];
+  } else {
+    config = config || {};
+  }
+
+  config = mergeConfig(this.defaults, config);
+  config.method = config.method ? config.method.toLowerCase() : 'get';
+
+  // Hook up interceptors middleware
+  var chain = [dispatchRequest, undefined];
+  var promise = Promise.resolve(config);
+
+  this.interceptors.request.forEach(function unshiftRequestInterceptors(interceptor) {
+    chain.unshift(interceptor.fulfilled, interceptor.rejected);
+  });
+
+  this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
+    chain.push(interceptor.fulfilled, interceptor.rejected);
+  });
+
+  while (chain.length) {
+    promise = promise.then(chain.shift(), chain.shift());
+  }
+
+  return promise;
+};
+
+Axios.prototype.getUri = function getUri(config) {
+  config = mergeConfig(this.defaults, config);
+  return buildURL(config.url, config.params, config.paramsSerializer).replace(/^\?/, '');
+};
+
+// Provide aliases for supported request methods
+utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData(method) {
+  /*eslint func-names:0*/
+  Axios.prototype[method] = function(url, config) {
+    return this.request(utils.merge(config || {}, {
+      method: method,
+      url: url
+    }));
+  };
+});
+
+utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+  /*eslint func-names:0*/
+  Axios.prototype[method] = function(url, data, config) {
+    return this.request(utils.merge(config || {}, {
+      method: method,
+      url: url,
+      data: data
+    }));
+  };
+});
+
+module.exports = Axios;
+
+},{"./../utils":"../node_modules/axios/lib/utils.js","../helpers/buildURL":"../node_modules/axios/lib/helpers/buildURL.js","./InterceptorManager":"../node_modules/axios/lib/core/InterceptorManager.js","./dispatchRequest":"../node_modules/axios/lib/core/dispatchRequest.js","./mergeConfig":"../node_modules/axios/lib/core/mergeConfig.js"}],"../node_modules/axios/lib/cancel/Cancel.js":[function(require,module,exports) {
+'use strict';
+
+/**
+ * A `Cancel` is an object that is thrown when an operation is canceled.
+ *
+ * @class
+ * @param {string=} message The message.
+ */
+function Cancel(message) {
+  this.message = message;
+}
+
+Cancel.prototype.toString = function toString() {
+  return 'Cancel' + (this.message ? ': ' + this.message : '');
+};
+
+Cancel.prototype.__CANCEL__ = true;
+
+module.exports = Cancel;
+
+},{}],"../node_modules/axios/lib/cancel/CancelToken.js":[function(require,module,exports) {
+'use strict';
+
+var Cancel = require('./Cancel');
+
+/**
+ * A `CancelToken` is an object that can be used to request cancellation of an operation.
+ *
+ * @class
+ * @param {Function} executor The executor function.
+ */
+function CancelToken(executor) {
+  if (typeof executor !== 'function') {
+    throw new TypeError('executor must be a function.');
+  }
+
+  var resolvePromise;
+  this.promise = new Promise(function promiseExecutor(resolve) {
+    resolvePromise = resolve;
+  });
+
+  var token = this;
+  executor(function cancel(message) {
+    if (token.reason) {
+      // Cancellation has already been requested
+      return;
+    }
+
+    token.reason = new Cancel(message);
+    resolvePromise(token.reason);
+  });
+}
+
+/**
+ * Throws a `Cancel` if cancellation has been requested.
+ */
+CancelToken.prototype.throwIfRequested = function throwIfRequested() {
+  if (this.reason) {
+    throw this.reason;
+  }
+};
+
+/**
+ * Returns an object that contains a new `CancelToken` and a function that, when called,
+ * cancels the `CancelToken`.
+ */
+CancelToken.source = function source() {
+  var cancel;
+  var token = new CancelToken(function executor(c) {
+    cancel = c;
+  });
+  return {
+    token: token,
+    cancel: cancel
+  };
+};
+
+module.exports = CancelToken;
+
+},{"./Cancel":"../node_modules/axios/lib/cancel/Cancel.js"}],"../node_modules/axios/lib/helpers/spread.js":[function(require,module,exports) {
+'use strict';
+
+/**
+ * Syntactic sugar for invoking a function and expanding an array for arguments.
+ *
+ * Common use case would be to use `Function.prototype.apply`.
+ *
+ *  ```js
+ *  function f(x, y, z) {}
+ *  var args = [1, 2, 3];
+ *  f.apply(null, args);
+ *  ```
+ *
+ * With `spread` this example can be re-written.
+ *
+ *  ```js
+ *  spread(function(x, y, z) {})([1, 2, 3]);
+ *  ```
+ *
+ * @param {Function} callback
+ * @returns {Function}
+ */
+module.exports = function spread(callback) {
+  return function wrap(arr) {
+    return callback.apply(null, arr);
+  };
+};
+
+},{}],"../node_modules/axios/lib/axios.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./utils');
+var bind = require('./helpers/bind');
+var Axios = require('./core/Axios');
+var mergeConfig = require('./core/mergeConfig');
+var defaults = require('./defaults');
+
+/**
+ * Create an instance of Axios
+ *
+ * @param {Object} defaultConfig The default config for the instance
+ * @return {Axios} A new instance of Axios
+ */
+function createInstance(defaultConfig) {
+  var context = new Axios(defaultConfig);
+  var instance = bind(Axios.prototype.request, context);
+
+  // Copy axios.prototype to instance
+  utils.extend(instance, Axios.prototype, context);
+
+  // Copy context to instance
+  utils.extend(instance, context);
+
+  return instance;
+}
+
+// Create the default instance to be exported
+var axios = createInstance(defaults);
+
+// Expose Axios class to allow class inheritance
+axios.Axios = Axios;
+
+// Factory for creating new instances
+axios.create = function create(instanceConfig) {
+  return createInstance(mergeConfig(axios.defaults, instanceConfig));
+};
+
+// Expose Cancel & CancelToken
+axios.Cancel = require('./cancel/Cancel');
+axios.CancelToken = require('./cancel/CancelToken');
+axios.isCancel = require('./cancel/isCancel');
+
+// Expose all/spread
+axios.all = function all(promises) {
+  return Promise.all(promises);
+};
+axios.spread = require('./helpers/spread');
+
+module.exports = axios;
+
+// Allow use of default import syntax in TypeScript
+module.exports.default = axios;
+
+},{"./utils":"../node_modules/axios/lib/utils.js","./helpers/bind":"../node_modules/axios/lib/helpers/bind.js","./core/Axios":"../node_modules/axios/lib/core/Axios.js","./core/mergeConfig":"../node_modules/axios/lib/core/mergeConfig.js","./defaults":"../node_modules/axios/lib/defaults.js","./cancel/Cancel":"../node_modules/axios/lib/cancel/Cancel.js","./cancel/CancelToken":"../node_modules/axios/lib/cancel/CancelToken.js","./cancel/isCancel":"../node_modules/axios/lib/cancel/isCancel.js","./helpers/spread":"../node_modules/axios/lib/helpers/spread.js"}],"../node_modules/axios/index.js":[function(require,module,exports) {
+module.exports = require('./lib/axios');
+},{"./lib/axios":"../node_modules/axios/lib/axios.js"}],"../node_modules/lodash/_listCacheClear.js":[function(require,module,exports) {
+/**
+ * Removes all key-value entries from the list cache.
+ *
+ * @private
+ * @name clear
+ * @memberOf ListCache
+ */
+function listCacheClear() {
+  this.__data__ = [];
+  this.size = 0;
+}
+
+module.exports = listCacheClear;
+
+},{}],"../node_modules/lodash/eq.js":[function(require,module,exports) {
+/**
+ * Performs a
+ * [`SameValueZero`](http://ecma-international.org/ecma-262/7.0/#sec-samevaluezero)
+ * comparison between two values to determine if they are equivalent.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Lang
+ * @param {*} value The value to compare.
+ * @param {*} other The other value to compare.
+ * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
+ * @example
+ *
+ * var object = { 'a': 1 };
+ * var other = { 'a': 1 };
+ *
+ * _.eq(object, object);
+ * // => true
+ *
+ * _.eq(object, other);
+ * // => false
+ *
+ * _.eq('a', 'a');
+ * // => true
+ *
+ * _.eq('a', Object('a'));
+ * // => false
+ *
+ * _.eq(NaN, NaN);
+ * // => true
+ */
+function eq(value, other) {
+  return value === other || (value !== value && other !== other);
+}
+
+module.exports = eq;
+
+},{}],"../node_modules/lodash/_assocIndexOf.js":[function(require,module,exports) {
+var eq = require('./eq');
+
+/**
+ * Gets the index at which the `key` is found in `array` of key-value pairs.
+ *
+ * @private
+ * @param {Array} array The array to inspect.
+ * @param {*} key The key to search for.
+ * @returns {number} Returns the index of the matched value, else `-1`.
+ */
+function assocIndexOf(array, key) {
+  var length = array.length;
+  while (length--) {
+    if (eq(array[length][0], key)) {
+      return length;
+    }
+  }
+  return -1;
+}
+
+module.exports = assocIndexOf;
+
+},{"./eq":"../node_modules/lodash/eq.js"}],"../node_modules/lodash/_listCacheDelete.js":[function(require,module,exports) {
+var assocIndexOf = require('./_assocIndexOf');
+
+/** Used for built-in method references. */
+var arrayProto = Array.prototype;
+
+/** Built-in value references. */
+var splice = arrayProto.splice;
+
+/**
+ * Removes `key` and its value from the list cache.
+ *
+ * @private
+ * @name delete
+ * @memberOf ListCache
+ * @param {string} key The key of the value to remove.
+ * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+ */
+function listCacheDelete(key) {
+  var data = this.__data__,
+      index = assocIndexOf(data, key);
+
+  if (index < 0) {
+    return false;
+  }
+  var lastIndex = data.length - 1;
+  if (index == lastIndex) {
+    data.pop();
+  } else {
+    splice.call(data, index, 1);
+  }
+  --this.size;
+  return true;
+}
+
+module.exports = listCacheDelete;
+
+},{"./_assocIndexOf":"../node_modules/lodash/_assocIndexOf.js"}],"../node_modules/lodash/_listCacheGet.js":[function(require,module,exports) {
+var assocIndexOf = require('./_assocIndexOf');
+
+/**
+ * Gets the list cache value for `key`.
+ *
+ * @private
+ * @name get
+ * @memberOf ListCache
+ * @param {string} key The key of the value to get.
+ * @returns {*} Returns the entry value.
+ */
+function listCacheGet(key) {
+  var data = this.__data__,
+      index = assocIndexOf(data, key);
+
+  return index < 0 ? undefined : data[index][1];
+}
+
+module.exports = listCacheGet;
+
+},{"./_assocIndexOf":"../node_modules/lodash/_assocIndexOf.js"}],"../node_modules/lodash/_listCacheHas.js":[function(require,module,exports) {
+var assocIndexOf = require('./_assocIndexOf');
+
+/**
+ * Checks if a list cache value for `key` exists.
+ *
+ * @private
+ * @name has
+ * @memberOf ListCache
+ * @param {string} key The key of the entry to check.
+ * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+ */
+function listCacheHas(key) {
+  return assocIndexOf(this.__data__, key) > -1;
+}
+
+module.exports = listCacheHas;
+
+},{"./_assocIndexOf":"../node_modules/lodash/_assocIndexOf.js"}],"../node_modules/lodash/_listCacheSet.js":[function(require,module,exports) {
+var assocIndexOf = require('./_assocIndexOf');
+
+/**
+ * Sets the list cache `key` to `value`.
+ *
+ * @private
+ * @name set
+ * @memberOf ListCache
+ * @param {string} key The key of the value to set.
+ * @param {*} value The value to set.
+ * @returns {Object} Returns the list cache instance.
+ */
+function listCacheSet(key, value) {
+  var data = this.__data__,
+      index = assocIndexOf(data, key);
+
+  if (index < 0) {
+    ++this.size;
+    data.push([key, value]);
+  } else {
+    data[index][1] = value;
+  }
+  return this;
+}
+
+module.exports = listCacheSet;
+
+},{"./_assocIndexOf":"../node_modules/lodash/_assocIndexOf.js"}],"../node_modules/lodash/_ListCache.js":[function(require,module,exports) {
+var listCacheClear = require('./_listCacheClear'),
+    listCacheDelete = require('./_listCacheDelete'),
+    listCacheGet = require('./_listCacheGet'),
+    listCacheHas = require('./_listCacheHas'),
+    listCacheSet = require('./_listCacheSet');
+
+/**
+ * Creates an list cache object.
+ *
+ * @private
+ * @constructor
+ * @param {Array} [entries] The key-value pairs to cache.
+ */
+function ListCache(entries) {
+  var index = -1,
+      length = entries == null ? 0 : entries.length;
+
+  this.clear();
+  while (++index < length) {
+    var entry = entries[index];
+    this.set(entry[0], entry[1]);
+  }
+}
+
+// Add methods to `ListCache`.
+ListCache.prototype.clear = listCacheClear;
+ListCache.prototype['delete'] = listCacheDelete;
+ListCache.prototype.get = listCacheGet;
+ListCache.prototype.has = listCacheHas;
+ListCache.prototype.set = listCacheSet;
+
+module.exports = ListCache;
+
+},{"./_listCacheClear":"../node_modules/lodash/_listCacheClear.js","./_listCacheDelete":"../node_modules/lodash/_listCacheDelete.js","./_listCacheGet":"../node_modules/lodash/_listCacheGet.js","./_listCacheHas":"../node_modules/lodash/_listCacheHas.js","./_listCacheSet":"../node_modules/lodash/_listCacheSet.js"}],"../node_modules/lodash/_stackClear.js":[function(require,module,exports) {
+var ListCache = require('./_ListCache');
+
+/**
+ * Removes all key-value entries from the stack.
+ *
+ * @private
+ * @name clear
+ * @memberOf Stack
+ */
+function stackClear() {
+  this.__data__ = new ListCache;
+  this.size = 0;
+}
+
+module.exports = stackClear;
+
+},{"./_ListCache":"../node_modules/lodash/_ListCache.js"}],"../node_modules/lodash/_stackDelete.js":[function(require,module,exports) {
+/**
+ * Removes `key` and its value from the stack.
+ *
+ * @private
+ * @name delete
+ * @memberOf Stack
+ * @param {string} key The key of the value to remove.
+ * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+ */
+function stackDelete(key) {
+  var data = this.__data__,
+      result = data['delete'](key);
+
+  this.size = data.size;
+  return result;
+}
+
+module.exports = stackDelete;
+
+},{}],"../node_modules/lodash/_stackGet.js":[function(require,module,exports) {
+/**
+ * Gets the stack value for `key`.
+ *
+ * @private
+ * @name get
+ * @memberOf Stack
+ * @param {string} key The key of the value to get.
+ * @returns {*} Returns the entry value.
+ */
+function stackGet(key) {
+  return this.__data__.get(key);
+}
+
+module.exports = stackGet;
+
+},{}],"../node_modules/lodash/_stackHas.js":[function(require,module,exports) {
+/**
+ * Checks if a stack value for `key` exists.
+ *
+ * @private
+ * @name has
+ * @memberOf Stack
+ * @param {string} key The key of the entry to check.
+ * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+ */
+function stackHas(key) {
+  return this.__data__.has(key);
+}
+
+module.exports = stackHas;
+
+},{}],"../node_modules/lodash/_freeGlobal.js":[function(require,module,exports) {
+var global = arguments[3];
+/** Detect free variable `global` from Node.js. */
+var freeGlobal = typeof global == 'object' && global && global.Object === Object && global;
+
+module.exports = freeGlobal;
+
+},{}],"../node_modules/lodash/_root.js":[function(require,module,exports) {
+var freeGlobal = require('./_freeGlobal');
+
+/** Detect free variable `self`. */
+var freeSelf = typeof self == 'object' && self && self.Object === Object && self;
+
+/** Used as a reference to the global object. */
+var root = freeGlobal || freeSelf || Function('return this')();
+
+module.exports = root;
+
+},{"./_freeGlobal":"../node_modules/lodash/_freeGlobal.js"}],"../node_modules/lodash/_Symbol.js":[function(require,module,exports) {
+var root = require('./_root');
+
+/** Built-in value references. */
+var Symbol = root.Symbol;
+
+module.exports = Symbol;
+
+},{"./_root":"../node_modules/lodash/_root.js"}],"../node_modules/lodash/_getRawTag.js":[function(require,module,exports) {
+var Symbol = require('./_Symbol');
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * Used to resolve the
+ * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
+ * of values.
+ */
+var nativeObjectToString = objectProto.toString;
+
+/** Built-in value references. */
+var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
+
+/**
+ * A specialized version of `baseGetTag` which ignores `Symbol.toStringTag` values.
+ *
+ * @private
+ * @param {*} value The value to query.
+ * @returns {string} Returns the raw `toStringTag`.
+ */
+function getRawTag(value) {
+  var isOwn = hasOwnProperty.call(value, symToStringTag),
+      tag = value[symToStringTag];
+
+  try {
+    value[symToStringTag] = undefined;
+    var unmasked = true;
+  } catch (e) {}
+
+  var result = nativeObjectToString.call(value);
+  if (unmasked) {
+    if (isOwn) {
+      value[symToStringTag] = tag;
+    } else {
+      delete value[symToStringTag];
+    }
+  }
+  return result;
+}
+
+module.exports = getRawTag;
+
+},{"./_Symbol":"../node_modules/lodash/_Symbol.js"}],"../node_modules/lodash/_objectToString.js":[function(require,module,exports) {
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/**
+ * Used to resolve the
+ * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
+ * of values.
+ */
+var nativeObjectToString = objectProto.toString;
+
+/**
+ * Converts `value` to a string using `Object.prototype.toString`.
+ *
+ * @private
+ * @param {*} value The value to convert.
+ * @returns {string} Returns the converted string.
+ */
+function objectToString(value) {
+  return nativeObjectToString.call(value);
+}
+
+module.exports = objectToString;
+
+},{}],"../node_modules/lodash/_baseGetTag.js":[function(require,module,exports) {
+var Symbol = require('./_Symbol'),
+    getRawTag = require('./_getRawTag'),
+    objectToString = require('./_objectToString');
+
+/** `Object#toString` result references. */
+var nullTag = '[object Null]',
+    undefinedTag = '[object Undefined]';
+
+/** Built-in value references. */
+var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
+
+/**
+ * The base implementation of `getTag` without fallbacks for buggy environments.
+ *
+ * @private
+ * @param {*} value The value to query.
+ * @returns {string} Returns the `toStringTag`.
+ */
+function baseGetTag(value) {
+  if (value == null) {
+    return value === undefined ? undefinedTag : nullTag;
+  }
+  return (symToStringTag && symToStringTag in Object(value))
+    ? getRawTag(value)
+    : objectToString(value);
+}
+
+module.exports = baseGetTag;
+
+},{"./_Symbol":"../node_modules/lodash/_Symbol.js","./_getRawTag":"../node_modules/lodash/_getRawTag.js","./_objectToString":"../node_modules/lodash/_objectToString.js"}],"../node_modules/lodash/isObject.js":[function(require,module,exports) {
+/**
+ * Checks if `value` is the
+ * [language type](http://www.ecma-international.org/ecma-262/7.0/#sec-ecmascript-language-types)
+ * of `Object`. (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+ *
+ * @static
+ * @memberOf _
+ * @since 0.1.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+ * @example
+ *
+ * _.isObject({});
+ * // => true
+ *
+ * _.isObject([1, 2, 3]);
+ * // => true
+ *
+ * _.isObject(_.noop);
+ * // => true
+ *
+ * _.isObject(null);
+ * // => false
+ */
+function isObject(value) {
+  var type = typeof value;
+  return value != null && (type == 'object' || type == 'function');
+}
+
+module.exports = isObject;
+
+},{}],"../node_modules/lodash/isFunction.js":[function(require,module,exports) {
+var baseGetTag = require('./_baseGetTag'),
+    isObject = require('./isObject');
+
+/** `Object#toString` result references. */
+var asyncTag = '[object AsyncFunction]',
+    funcTag = '[object Function]',
+    genTag = '[object GeneratorFunction]',
+    proxyTag = '[object Proxy]';
+
+/**
+ * Checks if `value` is classified as a `Function` object.
+ *
+ * @static
+ * @memberOf _
+ * @since 0.1.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a function, else `false`.
+ * @example
+ *
+ * _.isFunction(_);
+ * // => true
+ *
+ * _.isFunction(/abc/);
+ * // => false
+ */
+function isFunction(value) {
+  if (!isObject(value)) {
+    return false;
+  }
+  // The use of `Object#toString` avoids issues with the `typeof` operator
+  // in Safari 9 which returns 'object' for typed arrays and other constructors.
+  var tag = baseGetTag(value);
+  return tag == funcTag || tag == genTag || tag == asyncTag || tag == proxyTag;
+}
+
+module.exports = isFunction;
+
+},{"./_baseGetTag":"../node_modules/lodash/_baseGetTag.js","./isObject":"../node_modules/lodash/isObject.js"}],"../node_modules/lodash/_coreJsData.js":[function(require,module,exports) {
+var root = require('./_root');
+
+/** Used to detect overreaching core-js shims. */
+var coreJsData = root['__core-js_shared__'];
+
+module.exports = coreJsData;
+
+},{"./_root":"../node_modules/lodash/_root.js"}],"../node_modules/lodash/_isMasked.js":[function(require,module,exports) {
+var coreJsData = require('./_coreJsData');
+
+/** Used to detect methods masquerading as native. */
+var maskSrcKey = (function() {
+  var uid = /[^.]+$/.exec(coreJsData && coreJsData.keys && coreJsData.keys.IE_PROTO || '');
+  return uid ? ('Symbol(src)_1.' + uid) : '';
+}());
+
+/**
+ * Checks if `func` has its source masked.
+ *
+ * @private
+ * @param {Function} func The function to check.
+ * @returns {boolean} Returns `true` if `func` is masked, else `false`.
+ */
+function isMasked(func) {
+  return !!maskSrcKey && (maskSrcKey in func);
+}
+
+module.exports = isMasked;
+
+},{"./_coreJsData":"../node_modules/lodash/_coreJsData.js"}],"../node_modules/lodash/_toSource.js":[function(require,module,exports) {
+/** Used for built-in method references. */
+var funcProto = Function.prototype;
+
+/** Used to resolve the decompiled source of functions. */
+var funcToString = funcProto.toString;
+
+/**
+ * Converts `func` to its source code.
+ *
+ * @private
+ * @param {Function} func The function to convert.
+ * @returns {string} Returns the source code.
+ */
+function toSource(func) {
+  if (func != null) {
+    try {
+      return funcToString.call(func);
+    } catch (e) {}
+    try {
+      return (func + '');
+    } catch (e) {}
+  }
+  return '';
+}
+
+module.exports = toSource;
+
+},{}],"../node_modules/lodash/_baseIsNative.js":[function(require,module,exports) {
+var isFunction = require('./isFunction'),
+    isMasked = require('./_isMasked'),
+    isObject = require('./isObject'),
+    toSource = require('./_toSource');
+
+/**
+ * Used to match `RegExp`
+ * [syntax characters](http://ecma-international.org/ecma-262/7.0/#sec-patterns).
+ */
+var reRegExpChar = /[\\^$.*+?()[\]{}|]/g;
+
+/** Used to detect host constructors (Safari). */
+var reIsHostCtor = /^\[object .+?Constructor\]$/;
+
+/** Used for built-in method references. */
+var funcProto = Function.prototype,
+    objectProto = Object.prototype;
+
+/** Used to resolve the decompiled source of functions. */
+var funcToString = funcProto.toString;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/** Used to detect if a method is native. */
+var reIsNative = RegExp('^' +
+  funcToString.call(hasOwnProperty).replace(reRegExpChar, '\\$&')
+  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
+);
+
+/**
+ * The base implementation of `_.isNative` without bad shim checks.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a native function,
+ *  else `false`.
+ */
+function baseIsNative(value) {
+  if (!isObject(value) || isMasked(value)) {
+    return false;
+  }
+  var pattern = isFunction(value) ? reIsNative : reIsHostCtor;
+  return pattern.test(toSource(value));
+}
+
+module.exports = baseIsNative;
+
+},{"./isFunction":"../node_modules/lodash/isFunction.js","./_isMasked":"../node_modules/lodash/_isMasked.js","./isObject":"../node_modules/lodash/isObject.js","./_toSource":"../node_modules/lodash/_toSource.js"}],"../node_modules/lodash/_getValue.js":[function(require,module,exports) {
+/**
+ * Gets the value at `key` of `object`.
+ *
+ * @private
+ * @param {Object} [object] The object to query.
+ * @param {string} key The key of the property to get.
+ * @returns {*} Returns the property value.
+ */
+function getValue(object, key) {
+  return object == null ? undefined : object[key];
+}
+
+module.exports = getValue;
+
+},{}],"../node_modules/lodash/_getNative.js":[function(require,module,exports) {
+var baseIsNative = require('./_baseIsNative'),
+    getValue = require('./_getValue');
+
+/**
+ * Gets the native function at `key` of `object`.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @param {string} key The key of the method to get.
+ * @returns {*} Returns the function if it's native, else `undefined`.
+ */
+function getNative(object, key) {
+  var value = getValue(object, key);
+  return baseIsNative(value) ? value : undefined;
+}
+
+module.exports = getNative;
+
+},{"./_baseIsNative":"../node_modules/lodash/_baseIsNative.js","./_getValue":"../node_modules/lodash/_getValue.js"}],"../node_modules/lodash/_Map.js":[function(require,module,exports) {
+var getNative = require('./_getNative'),
+    root = require('./_root');
+
+/* Built-in method references that are verified to be native. */
+var Map = getNative(root, 'Map');
+
+module.exports = Map;
+
+},{"./_getNative":"../node_modules/lodash/_getNative.js","./_root":"../node_modules/lodash/_root.js"}],"../node_modules/lodash/_nativeCreate.js":[function(require,module,exports) {
+var getNative = require('./_getNative');
+
+/* Built-in method references that are verified to be native. */
+var nativeCreate = getNative(Object, 'create');
+
+module.exports = nativeCreate;
+
+},{"./_getNative":"../node_modules/lodash/_getNative.js"}],"../node_modules/lodash/_hashClear.js":[function(require,module,exports) {
+var nativeCreate = require('./_nativeCreate');
+
+/**
+ * Removes all key-value entries from the hash.
+ *
+ * @private
+ * @name clear
+ * @memberOf Hash
+ */
+function hashClear() {
+  this.__data__ = nativeCreate ? nativeCreate(null) : {};
+  this.size = 0;
+}
+
+module.exports = hashClear;
+
+},{"./_nativeCreate":"../node_modules/lodash/_nativeCreate.js"}],"../node_modules/lodash/_hashDelete.js":[function(require,module,exports) {
+/**
+ * Removes `key` and its value from the hash.
+ *
+ * @private
+ * @name delete
+ * @memberOf Hash
+ * @param {Object} hash The hash to modify.
+ * @param {string} key The key of the value to remove.
+ * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+ */
+function hashDelete(key) {
+  var result = this.has(key) && delete this.__data__[key];
+  this.size -= result ? 1 : 0;
+  return result;
+}
+
+module.exports = hashDelete;
+
+},{}],"../node_modules/lodash/_hashGet.js":[function(require,module,exports) {
+var nativeCreate = require('./_nativeCreate');
+
+/** Used to stand-in for `undefined` hash values. */
+var HASH_UNDEFINED = '__lodash_hash_undefined__';
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * Gets the hash value for `key`.
+ *
+ * @private
+ * @name get
+ * @memberOf Hash
+ * @param {string} key The key of the value to get.
+ * @returns {*} Returns the entry value.
+ */
+function hashGet(key) {
+  var data = this.__data__;
+  if (nativeCreate) {
+    var result = data[key];
+    return result === HASH_UNDEFINED ? undefined : result;
+  }
+  return hasOwnProperty.call(data, key) ? data[key] : undefined;
+}
+
+module.exports = hashGet;
+
+},{"./_nativeCreate":"../node_modules/lodash/_nativeCreate.js"}],"../node_modules/lodash/_hashHas.js":[function(require,module,exports) {
+var nativeCreate = require('./_nativeCreate');
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * Checks if a hash value for `key` exists.
+ *
+ * @private
+ * @name has
+ * @memberOf Hash
+ * @param {string} key The key of the entry to check.
+ * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+ */
+function hashHas(key) {
+  var data = this.__data__;
+  return nativeCreate ? (data[key] !== undefined) : hasOwnProperty.call(data, key);
+}
+
+module.exports = hashHas;
+
+},{"./_nativeCreate":"../node_modules/lodash/_nativeCreate.js"}],"../node_modules/lodash/_hashSet.js":[function(require,module,exports) {
+var nativeCreate = require('./_nativeCreate');
+
+/** Used to stand-in for `undefined` hash values. */
+var HASH_UNDEFINED = '__lodash_hash_undefined__';
+
+/**
+ * Sets the hash `key` to `value`.
+ *
+ * @private
+ * @name set
+ * @memberOf Hash
+ * @param {string} key The key of the value to set.
+ * @param {*} value The value to set.
+ * @returns {Object} Returns the hash instance.
+ */
+function hashSet(key, value) {
+  var data = this.__data__;
+  this.size += this.has(key) ? 0 : 1;
+  data[key] = (nativeCreate && value === undefined) ? HASH_UNDEFINED : value;
+  return this;
+}
+
+module.exports = hashSet;
+
+},{"./_nativeCreate":"../node_modules/lodash/_nativeCreate.js"}],"../node_modules/lodash/_Hash.js":[function(require,module,exports) {
+var hashClear = require('./_hashClear'),
+    hashDelete = require('./_hashDelete'),
+    hashGet = require('./_hashGet'),
+    hashHas = require('./_hashHas'),
+    hashSet = require('./_hashSet');
+
+/**
+ * Creates a hash object.
+ *
+ * @private
+ * @constructor
+ * @param {Array} [entries] The key-value pairs to cache.
+ */
+function Hash(entries) {
+  var index = -1,
+      length = entries == null ? 0 : entries.length;
+
+  this.clear();
+  while (++index < length) {
+    var entry = entries[index];
+    this.set(entry[0], entry[1]);
+  }
+}
+
+// Add methods to `Hash`.
+Hash.prototype.clear = hashClear;
+Hash.prototype['delete'] = hashDelete;
+Hash.prototype.get = hashGet;
+Hash.prototype.has = hashHas;
+Hash.prototype.set = hashSet;
+
+module.exports = Hash;
+
+},{"./_hashClear":"../node_modules/lodash/_hashClear.js","./_hashDelete":"../node_modules/lodash/_hashDelete.js","./_hashGet":"../node_modules/lodash/_hashGet.js","./_hashHas":"../node_modules/lodash/_hashHas.js","./_hashSet":"../node_modules/lodash/_hashSet.js"}],"../node_modules/lodash/_mapCacheClear.js":[function(require,module,exports) {
+var Hash = require('./_Hash'),
+    ListCache = require('./_ListCache'),
+    Map = require('./_Map');
+
+/**
+ * Removes all key-value entries from the map.
+ *
+ * @private
+ * @name clear
+ * @memberOf MapCache
+ */
+function mapCacheClear() {
+  this.size = 0;
+  this.__data__ = {
+    'hash': new Hash,
+    'map': new (Map || ListCache),
+    'string': new Hash
+  };
+}
+
+module.exports = mapCacheClear;
+
+},{"./_Hash":"../node_modules/lodash/_Hash.js","./_ListCache":"../node_modules/lodash/_ListCache.js","./_Map":"../node_modules/lodash/_Map.js"}],"../node_modules/lodash/_isKeyable.js":[function(require,module,exports) {
+/**
+ * Checks if `value` is suitable for use as unique object key.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is suitable, else `false`.
+ */
+function isKeyable(value) {
+  var type = typeof value;
+  return (type == 'string' || type == 'number' || type == 'symbol' || type == 'boolean')
+    ? (value !== '__proto__')
+    : (value === null);
+}
+
+module.exports = isKeyable;
+
+},{}],"../node_modules/lodash/_getMapData.js":[function(require,module,exports) {
+var isKeyable = require('./_isKeyable');
+
+/**
+ * Gets the data for `map`.
+ *
+ * @private
+ * @param {Object} map The map to query.
+ * @param {string} key The reference key.
+ * @returns {*} Returns the map data.
+ */
+function getMapData(map, key) {
+  var data = map.__data__;
+  return isKeyable(key)
+    ? data[typeof key == 'string' ? 'string' : 'hash']
+    : data.map;
+}
+
+module.exports = getMapData;
+
+},{"./_isKeyable":"../node_modules/lodash/_isKeyable.js"}],"../node_modules/lodash/_mapCacheDelete.js":[function(require,module,exports) {
+var getMapData = require('./_getMapData');
+
+/**
+ * Removes `key` and its value from the map.
+ *
+ * @private
+ * @name delete
+ * @memberOf MapCache
+ * @param {string} key The key of the value to remove.
+ * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+ */
+function mapCacheDelete(key) {
+  var result = getMapData(this, key)['delete'](key);
+  this.size -= result ? 1 : 0;
+  return result;
+}
+
+module.exports = mapCacheDelete;
+
+},{"./_getMapData":"../node_modules/lodash/_getMapData.js"}],"../node_modules/lodash/_mapCacheGet.js":[function(require,module,exports) {
+var getMapData = require('./_getMapData');
+
+/**
+ * Gets the map value for `key`.
+ *
+ * @private
+ * @name get
+ * @memberOf MapCache
+ * @param {string} key The key of the value to get.
+ * @returns {*} Returns the entry value.
+ */
+function mapCacheGet(key) {
+  return getMapData(this, key).get(key);
+}
+
+module.exports = mapCacheGet;
+
+},{"./_getMapData":"../node_modules/lodash/_getMapData.js"}],"../node_modules/lodash/_mapCacheHas.js":[function(require,module,exports) {
+var getMapData = require('./_getMapData');
+
+/**
+ * Checks if a map value for `key` exists.
+ *
+ * @private
+ * @name has
+ * @memberOf MapCache
+ * @param {string} key The key of the entry to check.
+ * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+ */
+function mapCacheHas(key) {
+  return getMapData(this, key).has(key);
+}
+
+module.exports = mapCacheHas;
+
+},{"./_getMapData":"../node_modules/lodash/_getMapData.js"}],"../node_modules/lodash/_mapCacheSet.js":[function(require,module,exports) {
+var getMapData = require('./_getMapData');
+
+/**
+ * Sets the map `key` to `value`.
+ *
+ * @private
+ * @name set
+ * @memberOf MapCache
+ * @param {string} key The key of the value to set.
+ * @param {*} value The value to set.
+ * @returns {Object} Returns the map cache instance.
+ */
+function mapCacheSet(key, value) {
+  var data = getMapData(this, key),
+      size = data.size;
+
+  data.set(key, value);
+  this.size += data.size == size ? 0 : 1;
+  return this;
+}
+
+module.exports = mapCacheSet;
+
+},{"./_getMapData":"../node_modules/lodash/_getMapData.js"}],"../node_modules/lodash/_MapCache.js":[function(require,module,exports) {
+var mapCacheClear = require('./_mapCacheClear'),
+    mapCacheDelete = require('./_mapCacheDelete'),
+    mapCacheGet = require('./_mapCacheGet'),
+    mapCacheHas = require('./_mapCacheHas'),
+    mapCacheSet = require('./_mapCacheSet');
+
+/**
+ * Creates a map cache object to store key-value pairs.
+ *
+ * @private
+ * @constructor
+ * @param {Array} [entries] The key-value pairs to cache.
+ */
+function MapCache(entries) {
+  var index = -1,
+      length = entries == null ? 0 : entries.length;
+
+  this.clear();
+  while (++index < length) {
+    var entry = entries[index];
+    this.set(entry[0], entry[1]);
+  }
+}
+
+// Add methods to `MapCache`.
+MapCache.prototype.clear = mapCacheClear;
+MapCache.prototype['delete'] = mapCacheDelete;
+MapCache.prototype.get = mapCacheGet;
+MapCache.prototype.has = mapCacheHas;
+MapCache.prototype.set = mapCacheSet;
+
+module.exports = MapCache;
+
+},{"./_mapCacheClear":"../node_modules/lodash/_mapCacheClear.js","./_mapCacheDelete":"../node_modules/lodash/_mapCacheDelete.js","./_mapCacheGet":"../node_modules/lodash/_mapCacheGet.js","./_mapCacheHas":"../node_modules/lodash/_mapCacheHas.js","./_mapCacheSet":"../node_modules/lodash/_mapCacheSet.js"}],"../node_modules/lodash/_stackSet.js":[function(require,module,exports) {
+var ListCache = require('./_ListCache'),
+    Map = require('./_Map'),
+    MapCache = require('./_MapCache');
+
+/** Used as the size to enable large array optimizations. */
+var LARGE_ARRAY_SIZE = 200;
+
+/**
+ * Sets the stack `key` to `value`.
+ *
+ * @private
+ * @name set
+ * @memberOf Stack
+ * @param {string} key The key of the value to set.
+ * @param {*} value The value to set.
+ * @returns {Object} Returns the stack cache instance.
+ */
+function stackSet(key, value) {
+  var data = this.__data__;
+  if (data instanceof ListCache) {
+    var pairs = data.__data__;
+    if (!Map || (pairs.length < LARGE_ARRAY_SIZE - 1)) {
+      pairs.push([key, value]);
+      this.size = ++data.size;
+      return this;
+    }
+    data = this.__data__ = new MapCache(pairs);
+  }
+  data.set(key, value);
+  this.size = data.size;
+  return this;
+}
+
+module.exports = stackSet;
+
+},{"./_ListCache":"../node_modules/lodash/_ListCache.js","./_Map":"../node_modules/lodash/_Map.js","./_MapCache":"../node_modules/lodash/_MapCache.js"}],"../node_modules/lodash/_Stack.js":[function(require,module,exports) {
+var ListCache = require('./_ListCache'),
+    stackClear = require('./_stackClear'),
+    stackDelete = require('./_stackDelete'),
+    stackGet = require('./_stackGet'),
+    stackHas = require('./_stackHas'),
+    stackSet = require('./_stackSet');
+
+/**
+ * Creates a stack cache object to store key-value pairs.
+ *
+ * @private
+ * @constructor
+ * @param {Array} [entries] The key-value pairs to cache.
+ */
+function Stack(entries) {
+  var data = this.__data__ = new ListCache(entries);
+  this.size = data.size;
+}
+
+// Add methods to `Stack`.
+Stack.prototype.clear = stackClear;
+Stack.prototype['delete'] = stackDelete;
+Stack.prototype.get = stackGet;
+Stack.prototype.has = stackHas;
+Stack.prototype.set = stackSet;
+
+module.exports = Stack;
+
+},{"./_ListCache":"../node_modules/lodash/_ListCache.js","./_stackClear":"../node_modules/lodash/_stackClear.js","./_stackDelete":"../node_modules/lodash/_stackDelete.js","./_stackGet":"../node_modules/lodash/_stackGet.js","./_stackHas":"../node_modules/lodash/_stackHas.js","./_stackSet":"../node_modules/lodash/_stackSet.js"}],"../node_modules/lodash/_arrayEach.js":[function(require,module,exports) {
+/**
+ * A specialized version of `_.forEach` for arrays without support for
+ * iteratee shorthands.
+ *
+ * @private
+ * @param {Array} [array] The array to iterate over.
+ * @param {Function} iteratee The function invoked per iteration.
+ * @returns {Array} Returns `array`.
+ */
+function arrayEach(array, iteratee) {
+  var index = -1,
+      length = array == null ? 0 : array.length;
+
+  while (++index < length) {
+    if (iteratee(array[index], index, array) === false) {
+      break;
+    }
+  }
+  return array;
+}
+
+module.exports = arrayEach;
+
+},{}],"../node_modules/lodash/_defineProperty.js":[function(require,module,exports) {
+var getNative = require('./_getNative');
+
+var defineProperty = (function() {
+  try {
+    var func = getNative(Object, 'defineProperty');
+    func({}, '', {});
+    return func;
+  } catch (e) {}
+}());
+
+module.exports = defineProperty;
+
+},{"./_getNative":"../node_modules/lodash/_getNative.js"}],"../node_modules/lodash/_baseAssignValue.js":[function(require,module,exports) {
+var defineProperty = require('./_defineProperty');
+
+/**
+ * The base implementation of `assignValue` and `assignMergeValue` without
+ * value checks.
+ *
+ * @private
+ * @param {Object} object The object to modify.
+ * @param {string} key The key of the property to assign.
+ * @param {*} value The value to assign.
+ */
+function baseAssignValue(object, key, value) {
+  if (key == '__proto__' && defineProperty) {
+    defineProperty(object, key, {
+      'configurable': true,
+      'enumerable': true,
+      'value': value,
+      'writable': true
+    });
+  } else {
+    object[key] = value;
+  }
+}
+
+module.exports = baseAssignValue;
+
+},{"./_defineProperty":"../node_modules/lodash/_defineProperty.js"}],"../node_modules/lodash/_assignValue.js":[function(require,module,exports) {
+var baseAssignValue = require('./_baseAssignValue'),
+    eq = require('./eq');
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * Assigns `value` to `key` of `object` if the existing value is not equivalent
+ * using [`SameValueZero`](http://ecma-international.org/ecma-262/7.0/#sec-samevaluezero)
+ * for equality comparisons.
+ *
+ * @private
+ * @param {Object} object The object to modify.
+ * @param {string} key The key of the property to assign.
+ * @param {*} value The value to assign.
+ */
+function assignValue(object, key, value) {
+  var objValue = object[key];
+  if (!(hasOwnProperty.call(object, key) && eq(objValue, value)) ||
+      (value === undefined && !(key in object))) {
+    baseAssignValue(object, key, value);
+  }
+}
+
+module.exports = assignValue;
+
+},{"./_baseAssignValue":"../node_modules/lodash/_baseAssignValue.js","./eq":"../node_modules/lodash/eq.js"}],"../node_modules/lodash/_copyObject.js":[function(require,module,exports) {
+var assignValue = require('./_assignValue'),
+    baseAssignValue = require('./_baseAssignValue');
+
+/**
+ * Copies properties of `source` to `object`.
+ *
+ * @private
+ * @param {Object} source The object to copy properties from.
+ * @param {Array} props The property identifiers to copy.
+ * @param {Object} [object={}] The object to copy properties to.
+ * @param {Function} [customizer] The function to customize copied values.
+ * @returns {Object} Returns `object`.
+ */
+function copyObject(source, props, object, customizer) {
+  var isNew = !object;
+  object || (object = {});
+
+  var index = -1,
+      length = props.length;
+
+  while (++index < length) {
+    var key = props[index];
+
+    var newValue = customizer
+      ? customizer(object[key], source[key], key, object, source)
+      : undefined;
+
+    if (newValue === undefined) {
+      newValue = source[key];
+    }
+    if (isNew) {
+      baseAssignValue(object, key, newValue);
+    } else {
+      assignValue(object, key, newValue);
+    }
+  }
+  return object;
+}
+
+module.exports = copyObject;
+
+},{"./_assignValue":"../node_modules/lodash/_assignValue.js","./_baseAssignValue":"../node_modules/lodash/_baseAssignValue.js"}],"../node_modules/lodash/_baseTimes.js":[function(require,module,exports) {
+/**
+ * The base implementation of `_.times` without support for iteratee shorthands
+ * or max array length checks.
+ *
+ * @private
+ * @param {number} n The number of times to invoke `iteratee`.
+ * @param {Function} iteratee The function invoked per iteration.
+ * @returns {Array} Returns the array of results.
+ */
+function baseTimes(n, iteratee) {
+  var index = -1,
+      result = Array(n);
+
+  while (++index < n) {
+    result[index] = iteratee(index);
+  }
+  return result;
+}
+
+module.exports = baseTimes;
+
+},{}],"../node_modules/lodash/isObjectLike.js":[function(require,module,exports) {
+/**
+ * Checks if `value` is object-like. A value is object-like if it's not `null`
+ * and has a `typeof` result of "object".
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
+ * @example
+ *
+ * _.isObjectLike({});
+ * // => true
+ *
+ * _.isObjectLike([1, 2, 3]);
+ * // => true
+ *
+ * _.isObjectLike(_.noop);
+ * // => false
+ *
+ * _.isObjectLike(null);
+ * // => false
+ */
+function isObjectLike(value) {
+  return value != null && typeof value == 'object';
+}
+
+module.exports = isObjectLike;
+
+},{}],"../node_modules/lodash/_baseIsArguments.js":[function(require,module,exports) {
+var baseGetTag = require('./_baseGetTag'),
+    isObjectLike = require('./isObjectLike');
+
+/** `Object#toString` result references. */
+var argsTag = '[object Arguments]';
+
+/**
+ * The base implementation of `_.isArguments`.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an `arguments` object,
+ */
+function baseIsArguments(value) {
+  return isObjectLike(value) && baseGetTag(value) == argsTag;
+}
+
+module.exports = baseIsArguments;
+
+},{"./_baseGetTag":"../node_modules/lodash/_baseGetTag.js","./isObjectLike":"../node_modules/lodash/isObjectLike.js"}],"../node_modules/lodash/isArguments.js":[function(require,module,exports) {
+var baseIsArguments = require('./_baseIsArguments'),
+    isObjectLike = require('./isObjectLike');
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/** Built-in value references. */
+var propertyIsEnumerable = objectProto.propertyIsEnumerable;
+
+/**
+ * Checks if `value` is likely an `arguments` object.
+ *
+ * @static
+ * @memberOf _
+ * @since 0.1.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an `arguments` object,
+ *  else `false`.
+ * @example
+ *
+ * _.isArguments(function() { return arguments; }());
+ * // => true
+ *
+ * _.isArguments([1, 2, 3]);
+ * // => false
+ */
+var isArguments = baseIsArguments(function() { return arguments; }()) ? baseIsArguments : function(value) {
+  return isObjectLike(value) && hasOwnProperty.call(value, 'callee') &&
+    !propertyIsEnumerable.call(value, 'callee');
+};
+
+module.exports = isArguments;
+
+},{"./_baseIsArguments":"../node_modules/lodash/_baseIsArguments.js","./isObjectLike":"../node_modules/lodash/isObjectLike.js"}],"../node_modules/lodash/isArray.js":[function(require,module,exports) {
+/**
+ * Checks if `value` is classified as an `Array` object.
+ *
+ * @static
+ * @memberOf _
+ * @since 0.1.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an array, else `false`.
+ * @example
+ *
+ * _.isArray([1, 2, 3]);
+ * // => true
+ *
+ * _.isArray(document.body.children);
+ * // => false
+ *
+ * _.isArray('abc');
+ * // => false
+ *
+ * _.isArray(_.noop);
+ * // => false
+ */
+var isArray = Array.isArray;
+
+module.exports = isArray;
+
+},{}],"../node_modules/lodash/stubFalse.js":[function(require,module,exports) {
+/**
+ * This method returns `false`.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.13.0
+ * @category Util
+ * @returns {boolean} Returns `false`.
+ * @example
+ *
+ * _.times(2, _.stubFalse);
+ * // => [false, false]
+ */
+function stubFalse() {
+  return false;
+}
+
+module.exports = stubFalse;
+
+},{}],"../node_modules/lodash/isBuffer.js":[function(require,module,exports) {
+
+var root = require('./_root'),
+    stubFalse = require('./stubFalse');
+
+/** Detect free variable `exports`. */
+var freeExports = typeof exports == 'object' && exports && !exports.nodeType && exports;
+
+/** Detect free variable `module`. */
+var freeModule = freeExports && typeof module == 'object' && module && !module.nodeType && module;
+
+/** Detect the popular CommonJS extension `module.exports`. */
+var moduleExports = freeModule && freeModule.exports === freeExports;
+
+/** Built-in value references. */
+var Buffer = moduleExports ? root.Buffer : undefined;
+
+/* Built-in method references for those with the same name as other `lodash` methods. */
+var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined;
+
+/**
+ * Checks if `value` is a buffer.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.3.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a buffer, else `false`.
+ * @example
+ *
+ * _.isBuffer(new Buffer(2));
+ * // => true
+ *
+ * _.isBuffer(new Uint8Array(2));
+ * // => false
+ */
+var isBuffer = nativeIsBuffer || stubFalse;
+
+module.exports = isBuffer;
+
+},{"./_root":"../node_modules/lodash/_root.js","./stubFalse":"../node_modules/lodash/stubFalse.js"}],"../node_modules/lodash/_isIndex.js":[function(require,module,exports) {
+/** Used as references for various `Number` constants. */
+var MAX_SAFE_INTEGER = 9007199254740991;
+
+/** Used to detect unsigned integer values. */
+var reIsUint = /^(?:0|[1-9]\d*)$/;
+
+/**
+ * Checks if `value` is a valid array-like index.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @param {number} [length=MAX_SAFE_INTEGER] The upper bounds of a valid index.
+ * @returns {boolean} Returns `true` if `value` is a valid index, else `false`.
+ */
+function isIndex(value, length) {
+  var type = typeof value;
+  length = length == null ? MAX_SAFE_INTEGER : length;
+
+  return !!length &&
+    (type == 'number' ||
+      (type != 'symbol' && reIsUint.test(value))) &&
+        (value > -1 && value % 1 == 0 && value < length);
+}
+
+module.exports = isIndex;
+
+},{}],"../node_modules/lodash/isLength.js":[function(require,module,exports) {
+/** Used as references for various `Number` constants. */
+var MAX_SAFE_INTEGER = 9007199254740991;
+
+/**
+ * Checks if `value` is a valid array-like length.
+ *
+ * **Note:** This method is loosely based on
+ * [`ToLength`](http://ecma-international.org/ecma-262/7.0/#sec-tolength).
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
+ * @example
+ *
+ * _.isLength(3);
+ * // => true
+ *
+ * _.isLength(Number.MIN_VALUE);
+ * // => false
+ *
+ * _.isLength(Infinity);
+ * // => false
+ *
+ * _.isLength('3');
+ * // => false
+ */
+function isLength(value) {
+  return typeof value == 'number' &&
+    value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
+}
+
+module.exports = isLength;
+
+},{}],"../node_modules/lodash/_baseIsTypedArray.js":[function(require,module,exports) {
+var baseGetTag = require('./_baseGetTag'),
+    isLength = require('./isLength'),
+    isObjectLike = require('./isObjectLike');
+
+/** `Object#toString` result references. */
+var argsTag = '[object Arguments]',
+    arrayTag = '[object Array]',
+    boolTag = '[object Boolean]',
+    dateTag = '[object Date]',
+    errorTag = '[object Error]',
+    funcTag = '[object Function]',
+    mapTag = '[object Map]',
+    numberTag = '[object Number]',
+    objectTag = '[object Object]',
+    regexpTag = '[object RegExp]',
+    setTag = '[object Set]',
+    stringTag = '[object String]',
+    weakMapTag = '[object WeakMap]';
+
+var arrayBufferTag = '[object ArrayBuffer]',
+    dataViewTag = '[object DataView]',
+    float32Tag = '[object Float32Array]',
+    float64Tag = '[object Float64Array]',
+    int8Tag = '[object Int8Array]',
+    int16Tag = '[object Int16Array]',
+    int32Tag = '[object Int32Array]',
+    uint8Tag = '[object Uint8Array]',
+    uint8ClampedTag = '[object Uint8ClampedArray]',
+    uint16Tag = '[object Uint16Array]',
+    uint32Tag = '[object Uint32Array]';
+
+/** Used to identify `toStringTag` values of typed arrays. */
+var typedArrayTags = {};
+typedArrayTags[float32Tag] = typedArrayTags[float64Tag] =
+typedArrayTags[int8Tag] = typedArrayTags[int16Tag] =
+typedArrayTags[int32Tag] = typedArrayTags[uint8Tag] =
+typedArrayTags[uint8ClampedTag] = typedArrayTags[uint16Tag] =
+typedArrayTags[uint32Tag] = true;
+typedArrayTags[argsTag] = typedArrayTags[arrayTag] =
+typedArrayTags[arrayBufferTag] = typedArrayTags[boolTag] =
+typedArrayTags[dataViewTag] = typedArrayTags[dateTag] =
+typedArrayTags[errorTag] = typedArrayTags[funcTag] =
+typedArrayTags[mapTag] = typedArrayTags[numberTag] =
+typedArrayTags[objectTag] = typedArrayTags[regexpTag] =
+typedArrayTags[setTag] = typedArrayTags[stringTag] =
+typedArrayTags[weakMapTag] = false;
+
+/**
+ * The base implementation of `_.isTypedArray` without Node.js optimizations.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a typed array, else `false`.
+ */
+function baseIsTypedArray(value) {
+  return isObjectLike(value) &&
+    isLength(value.length) && !!typedArrayTags[baseGetTag(value)];
+}
+
+module.exports = baseIsTypedArray;
+
+},{"./_baseGetTag":"../node_modules/lodash/_baseGetTag.js","./isLength":"../node_modules/lodash/isLength.js","./isObjectLike":"../node_modules/lodash/isObjectLike.js"}],"../node_modules/lodash/_baseUnary.js":[function(require,module,exports) {
+/**
+ * The base implementation of `_.unary` without support for storing metadata.
+ *
+ * @private
+ * @param {Function} func The function to cap arguments for.
+ * @returns {Function} Returns the new capped function.
+ */
+function baseUnary(func) {
+  return function(value) {
+    return func(value);
+  };
+}
+
+module.exports = baseUnary;
+
+},{}],"../node_modules/lodash/_nodeUtil.js":[function(require,module,exports) {
+var freeGlobal = require('./_freeGlobal');
+
+/** Detect free variable `exports`. */
+var freeExports = typeof exports == 'object' && exports && !exports.nodeType && exports;
+
+/** Detect free variable `module`. */
+var freeModule = freeExports && typeof module == 'object' && module && !module.nodeType && module;
+
+/** Detect the popular CommonJS extension `module.exports`. */
+var moduleExports = freeModule && freeModule.exports === freeExports;
+
+/** Detect free variable `process` from Node.js. */
+var freeProcess = moduleExports && freeGlobal.process;
+
+/** Used to access faster Node.js helpers. */
+var nodeUtil = (function() {
+  try {
+    // Use `util.types` for Node.js 10+.
+    var types = freeModule && freeModule.require && freeModule.require('util').types;
+
+    if (types) {
+      return types;
+    }
+
+    // Legacy `process.binding('util')` for Node.js < 10.
+    return freeProcess && freeProcess.binding && freeProcess.binding('util');
+  } catch (e) {}
+}());
+
+module.exports = nodeUtil;
+
+},{"./_freeGlobal":"../node_modules/lodash/_freeGlobal.js"}],"../node_modules/lodash/isTypedArray.js":[function(require,module,exports) {
+var baseIsTypedArray = require('./_baseIsTypedArray'),
+    baseUnary = require('./_baseUnary'),
+    nodeUtil = require('./_nodeUtil');
+
+/* Node.js helper references. */
+var nodeIsTypedArray = nodeUtil && nodeUtil.isTypedArray;
+
+/**
+ * Checks if `value` is classified as a typed array.
+ *
+ * @static
+ * @memberOf _
+ * @since 3.0.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a typed array, else `false`.
+ * @example
+ *
+ * _.isTypedArray(new Uint8Array);
+ * // => true
+ *
+ * _.isTypedArray([]);
+ * // => false
+ */
+var isTypedArray = nodeIsTypedArray ? baseUnary(nodeIsTypedArray) : baseIsTypedArray;
+
+module.exports = isTypedArray;
+
+},{"./_baseIsTypedArray":"../node_modules/lodash/_baseIsTypedArray.js","./_baseUnary":"../node_modules/lodash/_baseUnary.js","./_nodeUtil":"../node_modules/lodash/_nodeUtil.js"}],"../node_modules/lodash/_arrayLikeKeys.js":[function(require,module,exports) {
+var baseTimes = require('./_baseTimes'),
+    isArguments = require('./isArguments'),
+    isArray = require('./isArray'),
+    isBuffer = require('./isBuffer'),
+    isIndex = require('./_isIndex'),
+    isTypedArray = require('./isTypedArray');
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * Creates an array of the enumerable property names of the array-like `value`.
+ *
+ * @private
+ * @param {*} value The value to query.
+ * @param {boolean} inherited Specify returning inherited property names.
+ * @returns {Array} Returns the array of property names.
+ */
+function arrayLikeKeys(value, inherited) {
+  var isArr = isArray(value),
+      isArg = !isArr && isArguments(value),
+      isBuff = !isArr && !isArg && isBuffer(value),
+      isType = !isArr && !isArg && !isBuff && isTypedArray(value),
+      skipIndexes = isArr || isArg || isBuff || isType,
+      result = skipIndexes ? baseTimes(value.length, String) : [],
+      length = result.length;
+
+  for (var key in value) {
+    if ((inherited || hasOwnProperty.call(value, key)) &&
+        !(skipIndexes && (
+           // Safari 9 has enumerable `arguments.length` in strict mode.
+           key == 'length' ||
+           // Node.js 0.10 has enumerable non-index properties on buffers.
+           (isBuff && (key == 'offset' || key == 'parent')) ||
+           // PhantomJS 2 has enumerable non-index properties on typed arrays.
+           (isType && (key == 'buffer' || key == 'byteLength' || key == 'byteOffset')) ||
+           // Skip index properties.
+           isIndex(key, length)
+        ))) {
+      result.push(key);
+    }
+  }
+  return result;
+}
+
+module.exports = arrayLikeKeys;
+
+},{"./_baseTimes":"../node_modules/lodash/_baseTimes.js","./isArguments":"../node_modules/lodash/isArguments.js","./isArray":"../node_modules/lodash/isArray.js","./isBuffer":"../node_modules/lodash/isBuffer.js","./_isIndex":"../node_modules/lodash/_isIndex.js","./isTypedArray":"../node_modules/lodash/isTypedArray.js"}],"../node_modules/lodash/_isPrototype.js":[function(require,module,exports) {
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/**
+ * Checks if `value` is likely a prototype object.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a prototype, else `false`.
+ */
+function isPrototype(value) {
+  var Ctor = value && value.constructor,
+      proto = (typeof Ctor == 'function' && Ctor.prototype) || objectProto;
+
+  return value === proto;
+}
+
+module.exports = isPrototype;
+
+},{}],"../node_modules/lodash/_overArg.js":[function(require,module,exports) {
+/**
+ * Creates a unary function that invokes `func` with its argument transformed.
+ *
+ * @private
+ * @param {Function} func The function to wrap.
+ * @param {Function} transform The argument transform.
+ * @returns {Function} Returns the new function.
+ */
+function overArg(func, transform) {
+  return function(arg) {
+    return func(transform(arg));
+  };
+}
+
+module.exports = overArg;
+
+},{}],"../node_modules/lodash/_nativeKeys.js":[function(require,module,exports) {
+var overArg = require('./_overArg');
+
+/* Built-in method references for those with the same name as other `lodash` methods. */
+var nativeKeys = overArg(Object.keys, Object);
+
+module.exports = nativeKeys;
+
+},{"./_overArg":"../node_modules/lodash/_overArg.js"}],"../node_modules/lodash/_baseKeys.js":[function(require,module,exports) {
+var isPrototype = require('./_isPrototype'),
+    nativeKeys = require('./_nativeKeys');
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * The base implementation of `_.keys` which doesn't treat sparse arrays as dense.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @returns {Array} Returns the array of property names.
+ */
+function baseKeys(object) {
+  if (!isPrototype(object)) {
+    return nativeKeys(object);
+  }
+  var result = [];
+  for (var key in Object(object)) {
+    if (hasOwnProperty.call(object, key) && key != 'constructor') {
+      result.push(key);
+    }
+  }
+  return result;
+}
+
+module.exports = baseKeys;
+
+},{"./_isPrototype":"../node_modules/lodash/_isPrototype.js","./_nativeKeys":"../node_modules/lodash/_nativeKeys.js"}],"../node_modules/lodash/isArrayLike.js":[function(require,module,exports) {
+var isFunction = require('./isFunction'),
+    isLength = require('./isLength');
+
+/**
+ * Checks if `value` is array-like. A value is considered array-like if it's
+ * not a function and has a `value.length` that's an integer greater than or
+ * equal to `0` and less than or equal to `Number.MAX_SAFE_INTEGER`.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is array-like, else `false`.
+ * @example
+ *
+ * _.isArrayLike([1, 2, 3]);
+ * // => true
+ *
+ * _.isArrayLike(document.body.children);
+ * // => true
+ *
+ * _.isArrayLike('abc');
+ * // => true
+ *
+ * _.isArrayLike(_.noop);
+ * // => false
+ */
+function isArrayLike(value) {
+  return value != null && isLength(value.length) && !isFunction(value);
+}
+
+module.exports = isArrayLike;
+
+},{"./isFunction":"../node_modules/lodash/isFunction.js","./isLength":"../node_modules/lodash/isLength.js"}],"../node_modules/lodash/keys.js":[function(require,module,exports) {
+var arrayLikeKeys = require('./_arrayLikeKeys'),
+    baseKeys = require('./_baseKeys'),
+    isArrayLike = require('./isArrayLike');
+
+/**
+ * Creates an array of the own enumerable property names of `object`.
+ *
+ * **Note:** Non-object values are coerced to objects. See the
+ * [ES spec](http://ecma-international.org/ecma-262/7.0/#sec-object.keys)
+ * for more details.
+ *
+ * @static
+ * @since 0.1.0
+ * @memberOf _
+ * @category Object
+ * @param {Object} object The object to query.
+ * @returns {Array} Returns the array of property names.
+ * @example
+ *
+ * function Foo() {
+ *   this.a = 1;
+ *   this.b = 2;
+ * }
+ *
+ * Foo.prototype.c = 3;
+ *
+ * _.keys(new Foo);
+ * // => ['a', 'b'] (iteration order is not guaranteed)
+ *
+ * _.keys('hi');
+ * // => ['0', '1']
+ */
+function keys(object) {
+  return isArrayLike(object) ? arrayLikeKeys(object) : baseKeys(object);
+}
+
+module.exports = keys;
+
+},{"./_arrayLikeKeys":"../node_modules/lodash/_arrayLikeKeys.js","./_baseKeys":"../node_modules/lodash/_baseKeys.js","./isArrayLike":"../node_modules/lodash/isArrayLike.js"}],"../node_modules/lodash/_baseAssign.js":[function(require,module,exports) {
+var copyObject = require('./_copyObject'),
+    keys = require('./keys');
+
+/**
+ * The base implementation of `_.assign` without support for multiple sources
+ * or `customizer` functions.
+ *
+ * @private
+ * @param {Object} object The destination object.
+ * @param {Object} source The source object.
+ * @returns {Object} Returns `object`.
+ */
+function baseAssign(object, source) {
+  return object && copyObject(source, keys(source), object);
+}
+
+module.exports = baseAssign;
+
+},{"./_copyObject":"../node_modules/lodash/_copyObject.js","./keys":"../node_modules/lodash/keys.js"}],"../node_modules/lodash/_nativeKeysIn.js":[function(require,module,exports) {
+/**
+ * This function is like
+ * [`Object.keys`](http://ecma-international.org/ecma-262/7.0/#sec-object.keys)
+ * except that it includes inherited enumerable properties.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @returns {Array} Returns the array of property names.
+ */
+function nativeKeysIn(object) {
+  var result = [];
+  if (object != null) {
+    for (var key in Object(object)) {
+      result.push(key);
+    }
+  }
+  return result;
+}
+
+module.exports = nativeKeysIn;
+
+},{}],"../node_modules/lodash/_baseKeysIn.js":[function(require,module,exports) {
+var isObject = require('./isObject'),
+    isPrototype = require('./_isPrototype'),
+    nativeKeysIn = require('./_nativeKeysIn');
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * The base implementation of `_.keysIn` which doesn't treat sparse arrays as dense.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @returns {Array} Returns the array of property names.
+ */
+function baseKeysIn(object) {
+  if (!isObject(object)) {
+    return nativeKeysIn(object);
+  }
+  var isProto = isPrototype(object),
+      result = [];
+
+  for (var key in object) {
+    if (!(key == 'constructor' && (isProto || !hasOwnProperty.call(object, key)))) {
+      result.push(key);
+    }
+  }
+  return result;
+}
+
+module.exports = baseKeysIn;
+
+},{"./isObject":"../node_modules/lodash/isObject.js","./_isPrototype":"../node_modules/lodash/_isPrototype.js","./_nativeKeysIn":"../node_modules/lodash/_nativeKeysIn.js"}],"../node_modules/lodash/keysIn.js":[function(require,module,exports) {
+var arrayLikeKeys = require('./_arrayLikeKeys'),
+    baseKeysIn = require('./_baseKeysIn'),
+    isArrayLike = require('./isArrayLike');
+
+/**
+ * Creates an array of the own and inherited enumerable property names of `object`.
+ *
+ * **Note:** Non-object values are coerced to objects.
+ *
+ * @static
+ * @memberOf _
+ * @since 3.0.0
+ * @category Object
+ * @param {Object} object The object to query.
+ * @returns {Array} Returns the array of property names.
+ * @example
+ *
+ * function Foo() {
+ *   this.a = 1;
+ *   this.b = 2;
+ * }
+ *
+ * Foo.prototype.c = 3;
+ *
+ * _.keysIn(new Foo);
+ * // => ['a', 'b', 'c'] (iteration order is not guaranteed)
+ */
+function keysIn(object) {
+  return isArrayLike(object) ? arrayLikeKeys(object, true) : baseKeysIn(object);
+}
+
+module.exports = keysIn;
+
+},{"./_arrayLikeKeys":"../node_modules/lodash/_arrayLikeKeys.js","./_baseKeysIn":"../node_modules/lodash/_baseKeysIn.js","./isArrayLike":"../node_modules/lodash/isArrayLike.js"}],"../node_modules/lodash/_baseAssignIn.js":[function(require,module,exports) {
+var copyObject = require('./_copyObject'),
+    keysIn = require('./keysIn');
+
+/**
+ * The base implementation of `_.assignIn` without support for multiple sources
+ * or `customizer` functions.
+ *
+ * @private
+ * @param {Object} object The destination object.
+ * @param {Object} source The source object.
+ * @returns {Object} Returns `object`.
+ */
+function baseAssignIn(object, source) {
+  return object && copyObject(source, keysIn(source), object);
+}
+
+module.exports = baseAssignIn;
+
+},{"./_copyObject":"../node_modules/lodash/_copyObject.js","./keysIn":"../node_modules/lodash/keysIn.js"}],"../node_modules/lodash/_cloneBuffer.js":[function(require,module,exports) {
+
+var root = require('./_root');
+
+/** Detect free variable `exports`. */
+var freeExports = typeof exports == 'object' && exports && !exports.nodeType && exports;
+
+/** Detect free variable `module`. */
+var freeModule = freeExports && typeof module == 'object' && module && !module.nodeType && module;
+
+/** Detect the popular CommonJS extension `module.exports`. */
+var moduleExports = freeModule && freeModule.exports === freeExports;
+
+/** Built-in value references. */
+var Buffer = moduleExports ? root.Buffer : undefined,
+    allocUnsafe = Buffer ? Buffer.allocUnsafe : undefined;
+
+/**
+ * Creates a clone of  `buffer`.
+ *
+ * @private
+ * @param {Buffer} buffer The buffer to clone.
+ * @param {boolean} [isDeep] Specify a deep clone.
+ * @returns {Buffer} Returns the cloned buffer.
+ */
+function cloneBuffer(buffer, isDeep) {
+  if (isDeep) {
+    return buffer.slice();
+  }
+  var length = buffer.length,
+      result = allocUnsafe ? allocUnsafe(length) : new buffer.constructor(length);
+
+  buffer.copy(result);
+  return result;
+}
+
+module.exports = cloneBuffer;
+
+},{"./_root":"../node_modules/lodash/_root.js"}],"../node_modules/lodash/_copyArray.js":[function(require,module,exports) {
+/**
+ * Copies the values of `source` to `array`.
+ *
+ * @private
+ * @param {Array} source The array to copy values from.
+ * @param {Array} [array=[]] The array to copy values to.
+ * @returns {Array} Returns `array`.
+ */
+function copyArray(source, array) {
+  var index = -1,
+      length = source.length;
+
+  array || (array = Array(length));
+  while (++index < length) {
+    array[index] = source[index];
+  }
+  return array;
+}
+
+module.exports = copyArray;
+
+},{}],"../node_modules/lodash/_arrayFilter.js":[function(require,module,exports) {
+/**
+ * A specialized version of `_.filter` for arrays without support for
+ * iteratee shorthands.
+ *
+ * @private
+ * @param {Array} [array] The array to iterate over.
+ * @param {Function} predicate The function invoked per iteration.
+ * @returns {Array} Returns the new filtered array.
+ */
+function arrayFilter(array, predicate) {
+  var index = -1,
+      length = array == null ? 0 : array.length,
+      resIndex = 0,
+      result = [];
+
+  while (++index < length) {
+    var value = array[index];
+    if (predicate(value, index, array)) {
+      result[resIndex++] = value;
+    }
+  }
+  return result;
+}
+
+module.exports = arrayFilter;
+
+},{}],"../node_modules/lodash/stubArray.js":[function(require,module,exports) {
+/**
+ * This method returns a new empty array.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.13.0
+ * @category Util
+ * @returns {Array} Returns the new empty array.
+ * @example
+ *
+ * var arrays = _.times(2, _.stubArray);
+ *
+ * console.log(arrays);
+ * // => [[], []]
+ *
+ * console.log(arrays[0] === arrays[1]);
+ * // => false
+ */
+function stubArray() {
+  return [];
+}
+
+module.exports = stubArray;
+
+},{}],"../node_modules/lodash/_getSymbols.js":[function(require,module,exports) {
+var arrayFilter = require('./_arrayFilter'),
+    stubArray = require('./stubArray');
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Built-in value references. */
+var propertyIsEnumerable = objectProto.propertyIsEnumerable;
+
+/* Built-in method references for those with the same name as other `lodash` methods. */
+var nativeGetSymbols = Object.getOwnPropertySymbols;
+
+/**
+ * Creates an array of the own enumerable symbols of `object`.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @returns {Array} Returns the array of symbols.
+ */
+var getSymbols = !nativeGetSymbols ? stubArray : function(object) {
+  if (object == null) {
+    return [];
+  }
+  object = Object(object);
+  return arrayFilter(nativeGetSymbols(object), function(symbol) {
+    return propertyIsEnumerable.call(object, symbol);
+  });
+};
+
+module.exports = getSymbols;
+
+},{"./_arrayFilter":"../node_modules/lodash/_arrayFilter.js","./stubArray":"../node_modules/lodash/stubArray.js"}],"../node_modules/lodash/_copySymbols.js":[function(require,module,exports) {
+var copyObject = require('./_copyObject'),
+    getSymbols = require('./_getSymbols');
+
+/**
+ * Copies own symbols of `source` to `object`.
+ *
+ * @private
+ * @param {Object} source The object to copy symbols from.
+ * @param {Object} [object={}] The object to copy symbols to.
+ * @returns {Object} Returns `object`.
+ */
+function copySymbols(source, object) {
+  return copyObject(source, getSymbols(source), object);
+}
+
+module.exports = copySymbols;
+
+},{"./_copyObject":"../node_modules/lodash/_copyObject.js","./_getSymbols":"../node_modules/lodash/_getSymbols.js"}],"../node_modules/lodash/_arrayPush.js":[function(require,module,exports) {
+/**
+ * Appends the elements of `values` to `array`.
+ *
+ * @private
+ * @param {Array} array The array to modify.
+ * @param {Array} values The values to append.
+ * @returns {Array} Returns `array`.
+ */
+function arrayPush(array, values) {
+  var index = -1,
+      length = values.length,
+      offset = array.length;
+
+  while (++index < length) {
+    array[offset + index] = values[index];
+  }
+  return array;
+}
+
+module.exports = arrayPush;
+
+},{}],"../node_modules/lodash/_getPrototype.js":[function(require,module,exports) {
+var overArg = require('./_overArg');
+
+/** Built-in value references. */
+var getPrototype = overArg(Object.getPrototypeOf, Object);
+
+module.exports = getPrototype;
+
+},{"./_overArg":"../node_modules/lodash/_overArg.js"}],"../node_modules/lodash/_getSymbolsIn.js":[function(require,module,exports) {
+var arrayPush = require('./_arrayPush'),
+    getPrototype = require('./_getPrototype'),
+    getSymbols = require('./_getSymbols'),
+    stubArray = require('./stubArray');
+
+/* Built-in method references for those with the same name as other `lodash` methods. */
+var nativeGetSymbols = Object.getOwnPropertySymbols;
+
+/**
+ * Creates an array of the own and inherited enumerable symbols of `object`.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @returns {Array} Returns the array of symbols.
+ */
+var getSymbolsIn = !nativeGetSymbols ? stubArray : function(object) {
+  var result = [];
+  while (object) {
+    arrayPush(result, getSymbols(object));
+    object = getPrototype(object);
+  }
+  return result;
+};
+
+module.exports = getSymbolsIn;
+
+},{"./_arrayPush":"../node_modules/lodash/_arrayPush.js","./_getPrototype":"../node_modules/lodash/_getPrototype.js","./_getSymbols":"../node_modules/lodash/_getSymbols.js","./stubArray":"../node_modules/lodash/stubArray.js"}],"../node_modules/lodash/_copySymbolsIn.js":[function(require,module,exports) {
+var copyObject = require('./_copyObject'),
+    getSymbolsIn = require('./_getSymbolsIn');
+
+/**
+ * Copies own and inherited symbols of `source` to `object`.
+ *
+ * @private
+ * @param {Object} source The object to copy symbols from.
+ * @param {Object} [object={}] The object to copy symbols to.
+ * @returns {Object} Returns `object`.
+ */
+function copySymbolsIn(source, object) {
+  return copyObject(source, getSymbolsIn(source), object);
+}
+
+module.exports = copySymbolsIn;
+
+},{"./_copyObject":"../node_modules/lodash/_copyObject.js","./_getSymbolsIn":"../node_modules/lodash/_getSymbolsIn.js"}],"../node_modules/lodash/_baseGetAllKeys.js":[function(require,module,exports) {
+var arrayPush = require('./_arrayPush'),
+    isArray = require('./isArray');
+
+/**
+ * The base implementation of `getAllKeys` and `getAllKeysIn` which uses
+ * `keysFunc` and `symbolsFunc` to get the enumerable property names and
+ * symbols of `object`.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @param {Function} keysFunc The function to get the keys of `object`.
+ * @param {Function} symbolsFunc The function to get the symbols of `object`.
+ * @returns {Array} Returns the array of property names and symbols.
+ */
+function baseGetAllKeys(object, keysFunc, symbolsFunc) {
+  var result = keysFunc(object);
+  return isArray(object) ? result : arrayPush(result, symbolsFunc(object));
+}
+
+module.exports = baseGetAllKeys;
+
+},{"./_arrayPush":"../node_modules/lodash/_arrayPush.js","./isArray":"../node_modules/lodash/isArray.js"}],"../node_modules/lodash/_getAllKeys.js":[function(require,module,exports) {
+var baseGetAllKeys = require('./_baseGetAllKeys'),
+    getSymbols = require('./_getSymbols'),
+    keys = require('./keys');
+
+/**
+ * Creates an array of own enumerable property names and symbols of `object`.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @returns {Array} Returns the array of property names and symbols.
+ */
+function getAllKeys(object) {
+  return baseGetAllKeys(object, keys, getSymbols);
+}
+
+module.exports = getAllKeys;
+
+},{"./_baseGetAllKeys":"../node_modules/lodash/_baseGetAllKeys.js","./_getSymbols":"../node_modules/lodash/_getSymbols.js","./keys":"../node_modules/lodash/keys.js"}],"../node_modules/lodash/_getAllKeysIn.js":[function(require,module,exports) {
+var baseGetAllKeys = require('./_baseGetAllKeys'),
+    getSymbolsIn = require('./_getSymbolsIn'),
+    keysIn = require('./keysIn');
+
+/**
+ * Creates an array of own and inherited enumerable property names and
+ * symbols of `object`.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @returns {Array} Returns the array of property names and symbols.
+ */
+function getAllKeysIn(object) {
+  return baseGetAllKeys(object, keysIn, getSymbolsIn);
+}
+
+module.exports = getAllKeysIn;
+
+},{"./_baseGetAllKeys":"../node_modules/lodash/_baseGetAllKeys.js","./_getSymbolsIn":"../node_modules/lodash/_getSymbolsIn.js","./keysIn":"../node_modules/lodash/keysIn.js"}],"../node_modules/lodash/_DataView.js":[function(require,module,exports) {
+var getNative = require('./_getNative'),
+    root = require('./_root');
+
+/* Built-in method references that are verified to be native. */
+var DataView = getNative(root, 'DataView');
+
+module.exports = DataView;
+
+},{"./_getNative":"../node_modules/lodash/_getNative.js","./_root":"../node_modules/lodash/_root.js"}],"../node_modules/lodash/_Promise.js":[function(require,module,exports) {
+var getNative = require('./_getNative'),
+    root = require('./_root');
+
+/* Built-in method references that are verified to be native. */
+var Promise = getNative(root, 'Promise');
+
+module.exports = Promise;
+
+},{"./_getNative":"../node_modules/lodash/_getNative.js","./_root":"../node_modules/lodash/_root.js"}],"../node_modules/lodash/_Set.js":[function(require,module,exports) {
+var getNative = require('./_getNative'),
+    root = require('./_root');
+
+/* Built-in method references that are verified to be native. */
+var Set = getNative(root, 'Set');
+
+module.exports = Set;
+
+},{"./_getNative":"../node_modules/lodash/_getNative.js","./_root":"../node_modules/lodash/_root.js"}],"../node_modules/lodash/_WeakMap.js":[function(require,module,exports) {
+var getNative = require('./_getNative'),
+    root = require('./_root');
+
+/* Built-in method references that are verified to be native. */
+var WeakMap = getNative(root, 'WeakMap');
+
+module.exports = WeakMap;
+
+},{"./_getNative":"../node_modules/lodash/_getNative.js","./_root":"../node_modules/lodash/_root.js"}],"../node_modules/lodash/_getTag.js":[function(require,module,exports) {
+var DataView = require('./_DataView'),
+    Map = require('./_Map'),
+    Promise = require('./_Promise'),
+    Set = require('./_Set'),
+    WeakMap = require('./_WeakMap'),
+    baseGetTag = require('./_baseGetTag'),
+    toSource = require('./_toSource');
+
+/** `Object#toString` result references. */
+var mapTag = '[object Map]',
+    objectTag = '[object Object]',
+    promiseTag = '[object Promise]',
+    setTag = '[object Set]',
+    weakMapTag = '[object WeakMap]';
+
+var dataViewTag = '[object DataView]';
+
+/** Used to detect maps, sets, and weakmaps. */
+var dataViewCtorString = toSource(DataView),
+    mapCtorString = toSource(Map),
+    promiseCtorString = toSource(Promise),
+    setCtorString = toSource(Set),
+    weakMapCtorString = toSource(WeakMap);
+
+/**
+ * Gets the `toStringTag` of `value`.
+ *
+ * @private
+ * @param {*} value The value to query.
+ * @returns {string} Returns the `toStringTag`.
+ */
+var getTag = baseGetTag;
+
+// Fallback for data views, maps, sets, and weak maps in IE 11 and promises in Node.js < 6.
+if ((DataView && getTag(new DataView(new ArrayBuffer(1))) != dataViewTag) ||
+    (Map && getTag(new Map) != mapTag) ||
+    (Promise && getTag(Promise.resolve()) != promiseTag) ||
+    (Set && getTag(new Set) != setTag) ||
+    (WeakMap && getTag(new WeakMap) != weakMapTag)) {
+  getTag = function(value) {
+    var result = baseGetTag(value),
+        Ctor = result == objectTag ? value.constructor : undefined,
+        ctorString = Ctor ? toSource(Ctor) : '';
+
+    if (ctorString) {
+      switch (ctorString) {
+        case dataViewCtorString: return dataViewTag;
+        case mapCtorString: return mapTag;
+        case promiseCtorString: return promiseTag;
+        case setCtorString: return setTag;
+        case weakMapCtorString: return weakMapTag;
+      }
+    }
+    return result;
+  };
+}
+
+module.exports = getTag;
+
+},{"./_DataView":"../node_modules/lodash/_DataView.js","./_Map":"../node_modules/lodash/_Map.js","./_Promise":"../node_modules/lodash/_Promise.js","./_Set":"../node_modules/lodash/_Set.js","./_WeakMap":"../node_modules/lodash/_WeakMap.js","./_baseGetTag":"../node_modules/lodash/_baseGetTag.js","./_toSource":"../node_modules/lodash/_toSource.js"}],"../node_modules/lodash/_initCloneArray.js":[function(require,module,exports) {
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * Initializes an array clone.
+ *
+ * @private
+ * @param {Array} array The array to clone.
+ * @returns {Array} Returns the initialized clone.
+ */
+function initCloneArray(array) {
+  var length = array.length,
+      result = new array.constructor(length);
+
+  // Add properties assigned by `RegExp#exec`.
+  if (length && typeof array[0] == 'string' && hasOwnProperty.call(array, 'index')) {
+    result.index = array.index;
+    result.input = array.input;
+  }
+  return result;
+}
+
+module.exports = initCloneArray;
+
+},{}],"../node_modules/lodash/_Uint8Array.js":[function(require,module,exports) {
+var root = require('./_root');
+
+/** Built-in value references. */
+var Uint8Array = root.Uint8Array;
+
+module.exports = Uint8Array;
+
+},{"./_root":"../node_modules/lodash/_root.js"}],"../node_modules/lodash/_cloneArrayBuffer.js":[function(require,module,exports) {
+var Uint8Array = require('./_Uint8Array');
+
+/**
+ * Creates a clone of `arrayBuffer`.
+ *
+ * @private
+ * @param {ArrayBuffer} arrayBuffer The array buffer to clone.
+ * @returns {ArrayBuffer} Returns the cloned array buffer.
+ */
+function cloneArrayBuffer(arrayBuffer) {
+  var result = new arrayBuffer.constructor(arrayBuffer.byteLength);
+  new Uint8Array(result).set(new Uint8Array(arrayBuffer));
+  return result;
+}
+
+module.exports = cloneArrayBuffer;
+
+},{"./_Uint8Array":"../node_modules/lodash/_Uint8Array.js"}],"../node_modules/lodash/_cloneDataView.js":[function(require,module,exports) {
+var cloneArrayBuffer = require('./_cloneArrayBuffer');
+
+/**
+ * Creates a clone of `dataView`.
+ *
+ * @private
+ * @param {Object} dataView The data view to clone.
+ * @param {boolean} [isDeep] Specify a deep clone.
+ * @returns {Object} Returns the cloned data view.
+ */
+function cloneDataView(dataView, isDeep) {
+  var buffer = isDeep ? cloneArrayBuffer(dataView.buffer) : dataView.buffer;
+  return new dataView.constructor(buffer, dataView.byteOffset, dataView.byteLength);
+}
+
+module.exports = cloneDataView;
+
+},{"./_cloneArrayBuffer":"../node_modules/lodash/_cloneArrayBuffer.js"}],"../node_modules/lodash/_cloneRegExp.js":[function(require,module,exports) {
+/** Used to match `RegExp` flags from their coerced string values. */
+var reFlags = /\w*$/;
+
+/**
+ * Creates a clone of `regexp`.
+ *
+ * @private
+ * @param {Object} regexp The regexp to clone.
+ * @returns {Object} Returns the cloned regexp.
+ */
+function cloneRegExp(regexp) {
+  var result = new regexp.constructor(regexp.source, reFlags.exec(regexp));
+  result.lastIndex = regexp.lastIndex;
+  return result;
+}
+
+module.exports = cloneRegExp;
+
+},{}],"../node_modules/lodash/_cloneSymbol.js":[function(require,module,exports) {
+var Symbol = require('./_Symbol');
+
+/** Used to convert symbols to primitives and strings. */
+var symbolProto = Symbol ? Symbol.prototype : undefined,
+    symbolValueOf = symbolProto ? symbolProto.valueOf : undefined;
+
+/**
+ * Creates a clone of the `symbol` object.
+ *
+ * @private
+ * @param {Object} symbol The symbol object to clone.
+ * @returns {Object} Returns the cloned symbol object.
+ */
+function cloneSymbol(symbol) {
+  return symbolValueOf ? Object(symbolValueOf.call(symbol)) : {};
+}
+
+module.exports = cloneSymbol;
+
+},{"./_Symbol":"../node_modules/lodash/_Symbol.js"}],"../node_modules/lodash/_cloneTypedArray.js":[function(require,module,exports) {
+var cloneArrayBuffer = require('./_cloneArrayBuffer');
+
+/**
+ * Creates a clone of `typedArray`.
+ *
+ * @private
+ * @param {Object} typedArray The typed array to clone.
+ * @param {boolean} [isDeep] Specify a deep clone.
+ * @returns {Object} Returns the cloned typed array.
+ */
+function cloneTypedArray(typedArray, isDeep) {
+  var buffer = isDeep ? cloneArrayBuffer(typedArray.buffer) : typedArray.buffer;
+  return new typedArray.constructor(buffer, typedArray.byteOffset, typedArray.length);
+}
+
+module.exports = cloneTypedArray;
+
+},{"./_cloneArrayBuffer":"../node_modules/lodash/_cloneArrayBuffer.js"}],"../node_modules/lodash/_initCloneByTag.js":[function(require,module,exports) {
+var cloneArrayBuffer = require('./_cloneArrayBuffer'),
+    cloneDataView = require('./_cloneDataView'),
+    cloneRegExp = require('./_cloneRegExp'),
+    cloneSymbol = require('./_cloneSymbol'),
+    cloneTypedArray = require('./_cloneTypedArray');
+
+/** `Object#toString` result references. */
+var boolTag = '[object Boolean]',
+    dateTag = '[object Date]',
+    mapTag = '[object Map]',
+    numberTag = '[object Number]',
+    regexpTag = '[object RegExp]',
+    setTag = '[object Set]',
+    stringTag = '[object String]',
+    symbolTag = '[object Symbol]';
+
+var arrayBufferTag = '[object ArrayBuffer]',
+    dataViewTag = '[object DataView]',
+    float32Tag = '[object Float32Array]',
+    float64Tag = '[object Float64Array]',
+    int8Tag = '[object Int8Array]',
+    int16Tag = '[object Int16Array]',
+    int32Tag = '[object Int32Array]',
+    uint8Tag = '[object Uint8Array]',
+    uint8ClampedTag = '[object Uint8ClampedArray]',
+    uint16Tag = '[object Uint16Array]',
+    uint32Tag = '[object Uint32Array]';
+
+/**
+ * Initializes an object clone based on its `toStringTag`.
+ *
+ * **Note:** This function only supports cloning values with tags of
+ * `Boolean`, `Date`, `Error`, `Map`, `Number`, `RegExp`, `Set`, or `String`.
+ *
+ * @private
+ * @param {Object} object The object to clone.
+ * @param {string} tag The `toStringTag` of the object to clone.
+ * @param {boolean} [isDeep] Specify a deep clone.
+ * @returns {Object} Returns the initialized clone.
+ */
+function initCloneByTag(object, tag, isDeep) {
+  var Ctor = object.constructor;
+  switch (tag) {
+    case arrayBufferTag:
+      return cloneArrayBuffer(object);
+
+    case boolTag:
+    case dateTag:
+      return new Ctor(+object);
+
+    case dataViewTag:
+      return cloneDataView(object, isDeep);
+
+    case float32Tag: case float64Tag:
+    case int8Tag: case int16Tag: case int32Tag:
+    case uint8Tag: case uint8ClampedTag: case uint16Tag: case uint32Tag:
+      return cloneTypedArray(object, isDeep);
+
+    case mapTag:
+      return new Ctor;
+
+    case numberTag:
+    case stringTag:
+      return new Ctor(object);
+
+    case regexpTag:
+      return cloneRegExp(object);
+
+    case setTag:
+      return new Ctor;
+
+    case symbolTag:
+      return cloneSymbol(object);
+  }
+}
+
+module.exports = initCloneByTag;
+
+},{"./_cloneArrayBuffer":"../node_modules/lodash/_cloneArrayBuffer.js","./_cloneDataView":"../node_modules/lodash/_cloneDataView.js","./_cloneRegExp":"../node_modules/lodash/_cloneRegExp.js","./_cloneSymbol":"../node_modules/lodash/_cloneSymbol.js","./_cloneTypedArray":"../node_modules/lodash/_cloneTypedArray.js"}],"../node_modules/lodash/_baseCreate.js":[function(require,module,exports) {
+var isObject = require('./isObject');
+
+/** Built-in value references. */
+var objectCreate = Object.create;
+
+/**
+ * The base implementation of `_.create` without support for assigning
+ * properties to the created object.
+ *
+ * @private
+ * @param {Object} proto The object to inherit from.
+ * @returns {Object} Returns the new object.
+ */
+var baseCreate = (function() {
+  function object() {}
+  return function(proto) {
+    if (!isObject(proto)) {
+      return {};
+    }
+    if (objectCreate) {
+      return objectCreate(proto);
+    }
+    object.prototype = proto;
+    var result = new object;
+    object.prototype = undefined;
+    return result;
+  };
+}());
+
+module.exports = baseCreate;
+
+},{"./isObject":"../node_modules/lodash/isObject.js"}],"../node_modules/lodash/_initCloneObject.js":[function(require,module,exports) {
+var baseCreate = require('./_baseCreate'),
+    getPrototype = require('./_getPrototype'),
+    isPrototype = require('./_isPrototype');
+
+/**
+ * Initializes an object clone.
+ *
+ * @private
+ * @param {Object} object The object to clone.
+ * @returns {Object} Returns the initialized clone.
+ */
+function initCloneObject(object) {
+  return (typeof object.constructor == 'function' && !isPrototype(object))
+    ? baseCreate(getPrototype(object))
+    : {};
+}
+
+module.exports = initCloneObject;
+
+},{"./_baseCreate":"../node_modules/lodash/_baseCreate.js","./_getPrototype":"../node_modules/lodash/_getPrototype.js","./_isPrototype":"../node_modules/lodash/_isPrototype.js"}],"../node_modules/lodash/_baseIsMap.js":[function(require,module,exports) {
+var getTag = require('./_getTag'),
+    isObjectLike = require('./isObjectLike');
+
+/** `Object#toString` result references. */
+var mapTag = '[object Map]';
+
+/**
+ * The base implementation of `_.isMap` without Node.js optimizations.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a map, else `false`.
+ */
+function baseIsMap(value) {
+  return isObjectLike(value) && getTag(value) == mapTag;
+}
+
+module.exports = baseIsMap;
+
+},{"./_getTag":"../node_modules/lodash/_getTag.js","./isObjectLike":"../node_modules/lodash/isObjectLike.js"}],"../node_modules/lodash/isMap.js":[function(require,module,exports) {
+var baseIsMap = require('./_baseIsMap'),
+    baseUnary = require('./_baseUnary'),
+    nodeUtil = require('./_nodeUtil');
+
+/* Node.js helper references. */
+var nodeIsMap = nodeUtil && nodeUtil.isMap;
+
+/**
+ * Checks if `value` is classified as a `Map` object.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.3.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a map, else `false`.
+ * @example
+ *
+ * _.isMap(new Map);
+ * // => true
+ *
+ * _.isMap(new WeakMap);
+ * // => false
+ */
+var isMap = nodeIsMap ? baseUnary(nodeIsMap) : baseIsMap;
+
+module.exports = isMap;
+
+},{"./_baseIsMap":"../node_modules/lodash/_baseIsMap.js","./_baseUnary":"../node_modules/lodash/_baseUnary.js","./_nodeUtil":"../node_modules/lodash/_nodeUtil.js"}],"../node_modules/lodash/_baseIsSet.js":[function(require,module,exports) {
+var getTag = require('./_getTag'),
+    isObjectLike = require('./isObjectLike');
+
+/** `Object#toString` result references. */
+var setTag = '[object Set]';
+
+/**
+ * The base implementation of `_.isSet` without Node.js optimizations.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a set, else `false`.
+ */
+function baseIsSet(value) {
+  return isObjectLike(value) && getTag(value) == setTag;
+}
+
+module.exports = baseIsSet;
+
+},{"./_getTag":"../node_modules/lodash/_getTag.js","./isObjectLike":"../node_modules/lodash/isObjectLike.js"}],"../node_modules/lodash/isSet.js":[function(require,module,exports) {
+var baseIsSet = require('./_baseIsSet'),
+    baseUnary = require('./_baseUnary'),
+    nodeUtil = require('./_nodeUtil');
+
+/* Node.js helper references. */
+var nodeIsSet = nodeUtil && nodeUtil.isSet;
+
+/**
+ * Checks if `value` is classified as a `Set` object.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.3.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a set, else `false`.
+ * @example
+ *
+ * _.isSet(new Set);
+ * // => true
+ *
+ * _.isSet(new WeakSet);
+ * // => false
+ */
+var isSet = nodeIsSet ? baseUnary(nodeIsSet) : baseIsSet;
+
+module.exports = isSet;
+
+},{"./_baseIsSet":"../node_modules/lodash/_baseIsSet.js","./_baseUnary":"../node_modules/lodash/_baseUnary.js","./_nodeUtil":"../node_modules/lodash/_nodeUtil.js"}],"../node_modules/lodash/_baseClone.js":[function(require,module,exports) {
+var Stack = require('./_Stack'),
+    arrayEach = require('./_arrayEach'),
+    assignValue = require('./_assignValue'),
+    baseAssign = require('./_baseAssign'),
+    baseAssignIn = require('./_baseAssignIn'),
+    cloneBuffer = require('./_cloneBuffer'),
+    copyArray = require('./_copyArray'),
+    copySymbols = require('./_copySymbols'),
+    copySymbolsIn = require('./_copySymbolsIn'),
+    getAllKeys = require('./_getAllKeys'),
+    getAllKeysIn = require('./_getAllKeysIn'),
+    getTag = require('./_getTag'),
+    initCloneArray = require('./_initCloneArray'),
+    initCloneByTag = require('./_initCloneByTag'),
+    initCloneObject = require('./_initCloneObject'),
+    isArray = require('./isArray'),
+    isBuffer = require('./isBuffer'),
+    isMap = require('./isMap'),
+    isObject = require('./isObject'),
+    isSet = require('./isSet'),
+    keys = require('./keys');
+
+/** Used to compose bitmasks for cloning. */
+var CLONE_DEEP_FLAG = 1,
+    CLONE_FLAT_FLAG = 2,
+    CLONE_SYMBOLS_FLAG = 4;
+
+/** `Object#toString` result references. */
+var argsTag = '[object Arguments]',
+    arrayTag = '[object Array]',
+    boolTag = '[object Boolean]',
+    dateTag = '[object Date]',
+    errorTag = '[object Error]',
+    funcTag = '[object Function]',
+    genTag = '[object GeneratorFunction]',
+    mapTag = '[object Map]',
+    numberTag = '[object Number]',
+    objectTag = '[object Object]',
+    regexpTag = '[object RegExp]',
+    setTag = '[object Set]',
+    stringTag = '[object String]',
+    symbolTag = '[object Symbol]',
+    weakMapTag = '[object WeakMap]';
+
+var arrayBufferTag = '[object ArrayBuffer]',
+    dataViewTag = '[object DataView]',
+    float32Tag = '[object Float32Array]',
+    float64Tag = '[object Float64Array]',
+    int8Tag = '[object Int8Array]',
+    int16Tag = '[object Int16Array]',
+    int32Tag = '[object Int32Array]',
+    uint8Tag = '[object Uint8Array]',
+    uint8ClampedTag = '[object Uint8ClampedArray]',
+    uint16Tag = '[object Uint16Array]',
+    uint32Tag = '[object Uint32Array]';
+
+/** Used to identify `toStringTag` values supported by `_.clone`. */
+var cloneableTags = {};
+cloneableTags[argsTag] = cloneableTags[arrayTag] =
+cloneableTags[arrayBufferTag] = cloneableTags[dataViewTag] =
+cloneableTags[boolTag] = cloneableTags[dateTag] =
+cloneableTags[float32Tag] = cloneableTags[float64Tag] =
+cloneableTags[int8Tag] = cloneableTags[int16Tag] =
+cloneableTags[int32Tag] = cloneableTags[mapTag] =
+cloneableTags[numberTag] = cloneableTags[objectTag] =
+cloneableTags[regexpTag] = cloneableTags[setTag] =
+cloneableTags[stringTag] = cloneableTags[symbolTag] =
+cloneableTags[uint8Tag] = cloneableTags[uint8ClampedTag] =
+cloneableTags[uint16Tag] = cloneableTags[uint32Tag] = true;
+cloneableTags[errorTag] = cloneableTags[funcTag] =
+cloneableTags[weakMapTag] = false;
+
+/**
+ * The base implementation of `_.clone` and `_.cloneDeep` which tracks
+ * traversed objects.
+ *
+ * @private
+ * @param {*} value The value to clone.
+ * @param {boolean} bitmask The bitmask flags.
+ *  1 - Deep clone
+ *  2 - Flatten inherited properties
+ *  4 - Clone symbols
+ * @param {Function} [customizer] The function to customize cloning.
+ * @param {string} [key] The key of `value`.
+ * @param {Object} [object] The parent object of `value`.
+ * @param {Object} [stack] Tracks traversed objects and their clone counterparts.
+ * @returns {*} Returns the cloned value.
+ */
+function baseClone(value, bitmask, customizer, key, object, stack) {
+  var result,
+      isDeep = bitmask & CLONE_DEEP_FLAG,
+      isFlat = bitmask & CLONE_FLAT_FLAG,
+      isFull = bitmask & CLONE_SYMBOLS_FLAG;
+
+  if (customizer) {
+    result = object ? customizer(value, key, object, stack) : customizer(value);
+  }
+  if (result !== undefined) {
+    return result;
+  }
+  if (!isObject(value)) {
+    return value;
+  }
+  var isArr = isArray(value);
+  if (isArr) {
+    result = initCloneArray(value);
+    if (!isDeep) {
+      return copyArray(value, result);
+    }
+  } else {
+    var tag = getTag(value),
+        isFunc = tag == funcTag || tag == genTag;
+
+    if (isBuffer(value)) {
+      return cloneBuffer(value, isDeep);
+    }
+    if (tag == objectTag || tag == argsTag || (isFunc && !object)) {
+      result = (isFlat || isFunc) ? {} : initCloneObject(value);
+      if (!isDeep) {
+        return isFlat
+          ? copySymbolsIn(value, baseAssignIn(result, value))
+          : copySymbols(value, baseAssign(result, value));
+      }
+    } else {
+      if (!cloneableTags[tag]) {
+        return object ? value : {};
+      }
+      result = initCloneByTag(value, tag, isDeep);
+    }
+  }
+  // Check for circular references and return its corresponding clone.
+  stack || (stack = new Stack);
+  var stacked = stack.get(value);
+  if (stacked) {
+    return stacked;
+  }
+  stack.set(value, result);
+
+  if (isSet(value)) {
+    value.forEach(function(subValue) {
+      result.add(baseClone(subValue, bitmask, customizer, subValue, value, stack));
+    });
+  } else if (isMap(value)) {
+    value.forEach(function(subValue, key) {
+      result.set(key, baseClone(subValue, bitmask, customizer, key, value, stack));
+    });
+  }
+
+  var keysFunc = isFull
+    ? (isFlat ? getAllKeysIn : getAllKeys)
+    : (isFlat ? keysIn : keys);
+
+  var props = isArr ? undefined : keysFunc(value);
+  arrayEach(props || value, function(subValue, key) {
+    if (props) {
+      key = subValue;
+      subValue = value[key];
+    }
+    // Recursively populate clone (susceptible to call stack limits).
+    assignValue(result, key, baseClone(subValue, bitmask, customizer, key, value, stack));
+  });
+  return result;
+}
+
+module.exports = baseClone;
+
+},{"./_Stack":"../node_modules/lodash/_Stack.js","./_arrayEach":"../node_modules/lodash/_arrayEach.js","./_assignValue":"../node_modules/lodash/_assignValue.js","./_baseAssign":"../node_modules/lodash/_baseAssign.js","./_baseAssignIn":"../node_modules/lodash/_baseAssignIn.js","./_cloneBuffer":"../node_modules/lodash/_cloneBuffer.js","./_copyArray":"../node_modules/lodash/_copyArray.js","./_copySymbols":"../node_modules/lodash/_copySymbols.js","./_copySymbolsIn":"../node_modules/lodash/_copySymbolsIn.js","./_getAllKeys":"../node_modules/lodash/_getAllKeys.js","./_getAllKeysIn":"../node_modules/lodash/_getAllKeysIn.js","./_getTag":"../node_modules/lodash/_getTag.js","./_initCloneArray":"../node_modules/lodash/_initCloneArray.js","./_initCloneByTag":"../node_modules/lodash/_initCloneByTag.js","./_initCloneObject":"../node_modules/lodash/_initCloneObject.js","./isArray":"../node_modules/lodash/isArray.js","./isBuffer":"../node_modules/lodash/isBuffer.js","./isMap":"../node_modules/lodash/isMap.js","./isObject":"../node_modules/lodash/isObject.js","./isSet":"../node_modules/lodash/isSet.js","./keys":"../node_modules/lodash/keys.js"}],"../node_modules/lodash/cloneDeep.js":[function(require,module,exports) {
+var baseClone = require('./_baseClone');
+
+/** Used to compose bitmasks for cloning. */
+var CLONE_DEEP_FLAG = 1,
+    CLONE_SYMBOLS_FLAG = 4;
+
+/**
+ * This method is like `_.clone` except that it recursively clones `value`.
+ *
+ * @static
+ * @memberOf _
+ * @since 1.0.0
+ * @category Lang
+ * @param {*} value The value to recursively clone.
+ * @returns {*} Returns the deep cloned value.
+ * @see _.clone
+ * @example
+ *
+ * var objects = [{ 'a': 1 }, { 'b': 2 }];
+ *
+ * var deep = _.cloneDeep(objects);
+ * console.log(deep[0] === objects[0]);
+ * // => false
+ */
+function cloneDeep(value) {
+  return baseClone(value, CLONE_DEEP_FLAG | CLONE_SYMBOLS_FLAG);
+}
+
+module.exports = cloneDeep;
+
+},{"./_baseClone":"../node_modules/lodash/_baseClone.js"}],"../node_modules/qs/lib/utils.js":[function(require,module,exports) {
+'use strict';
+
+var has = Object.prototype.hasOwnProperty;
+
+var hexTable = function () {
+  var array = [];
+
+  for (var i = 0; i < 256; ++i) {
+    array.push('%' + ((i < 16 ? '0' : '') + i.toString(16)).toUpperCase());
+  }
+
+  return array;
+}();
+
+var compactQueue = function compactQueue(queue) {
+  var obj;
+
+  while (queue.length) {
+    var item = queue.pop();
+    obj = item.obj[item.prop];
+
+    if (Array.isArray(obj)) {
+      var compacted = [];
+
+      for (var j = 0; j < obj.length; ++j) {
+        if (typeof obj[j] !== 'undefined') {
+          compacted.push(obj[j]);
+        }
+      }
+
+      item.obj[item.prop] = compacted;
+    }
+  }
+
+  return obj;
+};
+
+var arrayToObject = function arrayToObject(source, options) {
+  var obj = options && options.plainObjects ? Object.create(null) : {};
+
+  for (var i = 0; i < source.length; ++i) {
+    if (typeof source[i] !== 'undefined') {
+      obj[i] = source[i];
+    }
+  }
+
+  return obj;
+};
+
+var merge = function merge(target, source, options) {
+  if (!source) {
+    return target;
+  }
+
+  if (typeof source !== 'object') {
+    if (Array.isArray(target)) {
+      target.push(source);
+    } else if (typeof target === 'object') {
+      if (options.plainObjects || options.allowPrototypes || !has.call(Object.prototype, source)) {
+        target[source] = true;
+      }
+    } else {
+      return [target, source];
+    }
+
+    return target;
+  }
+
+  if (typeof target !== 'object') {
+    return [target].concat(source);
+  }
+
+  var mergeTarget = target;
+
+  if (Array.isArray(target) && !Array.isArray(source)) {
+    mergeTarget = arrayToObject(target, options);
+  }
+
+  if (Array.isArray(target) && Array.isArray(source)) {
+    source.forEach(function (item, i) {
+      if (has.call(target, i)) {
+        if (target[i] && typeof target[i] === 'object') {
+          target[i] = merge(target[i], item, options);
+        } else {
+          target.push(item);
+        }
+      } else {
+        target[i] = item;
+      }
+    });
+    return target;
+  }
+
+  return Object.keys(source).reduce(function (acc, key) {
+    var value = source[key];
+
+    if (has.call(acc, key)) {
+      acc[key] = merge(acc[key], value, options);
+    } else {
+      acc[key] = value;
+    }
+
+    return acc;
+  }, mergeTarget);
+};
+
+var assign = function assignSingleSource(target, source) {
+  return Object.keys(source).reduce(function (acc, key) {
+    acc[key] = source[key];
+    return acc;
+  }, target);
+};
+
+var decode = function (str) {
+  try {
+    return decodeURIComponent(str.replace(/\+/g, ' '));
+  } catch (e) {
+    return str;
+  }
+};
+
+var encode = function encode(str) {
+  // This code was originally written by Brian White (mscdex) for the io.js core querystring library.
+  // It has been adapted here for stricter adherence to RFC 3986
+  if (str.length === 0) {
+    return str;
+  }
+
+  var string = typeof str === 'string' ? str : String(str);
+  var out = '';
+
+  for (var i = 0; i < string.length; ++i) {
+    var c = string.charCodeAt(i);
+
+    if (c === 0x2D // -
+    || c === 0x2E // .
+    || c === 0x5F // _
+    || c === 0x7E // ~
+    || c >= 0x30 && c <= 0x39 // 0-9
+    || c >= 0x41 && c <= 0x5A // a-z
+    || c >= 0x61 && c <= 0x7A // A-Z
+    ) {
+        out += string.charAt(i);
+        continue;
+      }
+
+    if (c < 0x80) {
+      out = out + hexTable[c];
+      continue;
+    }
+
+    if (c < 0x800) {
+      out = out + (hexTable[0xC0 | c >> 6] + hexTable[0x80 | c & 0x3F]);
+      continue;
+    }
+
+    if (c < 0xD800 || c >= 0xE000) {
+      out = out + (hexTable[0xE0 | c >> 12] + hexTable[0x80 | c >> 6 & 0x3F] + hexTable[0x80 | c & 0x3F]);
+      continue;
+    }
+
+    i += 1;
+    c = 0x10000 + ((c & 0x3FF) << 10 | string.charCodeAt(i) & 0x3FF);
+    out += hexTable[0xF0 | c >> 18] + hexTable[0x80 | c >> 12 & 0x3F] + hexTable[0x80 | c >> 6 & 0x3F] + hexTable[0x80 | c & 0x3F];
+  }
+
+  return out;
+};
+
+var compact = function compact(value) {
+  var queue = [{
+    obj: {
+      o: value
+    },
+    prop: 'o'
+  }];
+  var refs = [];
+
+  for (var i = 0; i < queue.length; ++i) {
+    var item = queue[i];
+    var obj = item.obj[item.prop];
+    var keys = Object.keys(obj);
+
+    for (var j = 0; j < keys.length; ++j) {
+      var key = keys[j];
+      var val = obj[key];
+
+      if (typeof val === 'object' && val !== null && refs.indexOf(val) === -1) {
+        queue.push({
+          obj: obj,
+          prop: key
+        });
+        refs.push(val);
+      }
+    }
+  }
+
+  return compactQueue(queue);
+};
+
+var isRegExp = function isRegExp(obj) {
+  return Object.prototype.toString.call(obj) === '[object RegExp]';
+};
+
+var isBuffer = function isBuffer(obj) {
+  if (obj === null || typeof obj === 'undefined') {
+    return false;
+  }
+
+  return !!(obj.constructor && obj.constructor.isBuffer && obj.constructor.isBuffer(obj));
+};
+
+module.exports = {
+  arrayToObject: arrayToObject,
+  assign: assign,
+  compact: compact,
+  decode: decode,
+  encode: encode,
+  isBuffer: isBuffer,
+  isRegExp: isRegExp,
+  merge: merge
+};
+},{}],"../node_modules/qs/lib/formats.js":[function(require,module,exports) {
+'use strict';
+
+var replace = String.prototype.replace;
+var percentTwenties = /%20/g;
+module.exports = {
+  'default': 'RFC3986',
+  formatters: {
+    RFC1738: function (value) {
+      return replace.call(value, percentTwenties, '+');
+    },
+    RFC3986: function (value) {
+      return value;
+    }
+  },
+  RFC1738: 'RFC1738',
+  RFC3986: 'RFC3986'
+};
+},{}],"../node_modules/qs/lib/stringify.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./utils');
+
+var formats = require('./formats');
+
+var arrayPrefixGenerators = {
+  brackets: function brackets(prefix) {
+    // eslint-disable-line func-name-matching
+    return prefix + '[]';
+  },
+  indices: function indices(prefix, key) {
+    // eslint-disable-line func-name-matching
+    return prefix + '[' + key + ']';
+  },
+  repeat: function repeat(prefix) {
+    // eslint-disable-line func-name-matching
+    return prefix;
+  }
+};
+var toISO = Date.prototype.toISOString;
+var defaults = {
+  delimiter: '&',
+  encode: true,
+  encoder: utils.encode,
+  encodeValuesOnly: false,
+  serializeDate: function serializeDate(date) {
+    // eslint-disable-line func-name-matching
+    return toISO.call(date);
+  },
+  skipNulls: false,
+  strictNullHandling: false
+};
+
+var stringify = function stringify( // eslint-disable-line func-name-matching
+object, prefix, generateArrayPrefix, strictNullHandling, skipNulls, encoder, filter, sort, allowDots, serializeDate, formatter, encodeValuesOnly) {
+  var obj = object;
+
+  if (typeof filter === 'function') {
+    obj = filter(prefix, obj);
+  } else if (obj instanceof Date) {
+    obj = serializeDate(obj);
+  } else if (obj === null) {
+    if (strictNullHandling) {
+      return encoder && !encodeValuesOnly ? encoder(prefix, defaults.encoder) : prefix;
+    }
+
+    obj = '';
+  }
+
+  if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean' || utils.isBuffer(obj)) {
+    if (encoder) {
+      var keyValue = encodeValuesOnly ? prefix : encoder(prefix, defaults.encoder);
+      return [formatter(keyValue) + '=' + formatter(encoder(obj, defaults.encoder))];
+    }
+
+    return [formatter(prefix) + '=' + formatter(String(obj))];
+  }
+
+  var values = [];
+
+  if (typeof obj === 'undefined') {
+    return values;
+  }
+
+  var objKeys;
+
+  if (Array.isArray(filter)) {
+    objKeys = filter;
+  } else {
+    var keys = Object.keys(obj);
+    objKeys = sort ? keys.sort(sort) : keys;
+  }
+
+  for (var i = 0; i < objKeys.length; ++i) {
+    var key = objKeys[i];
+
+    if (skipNulls && obj[key] === null) {
+      continue;
+    }
+
+    if (Array.isArray(obj)) {
+      values = values.concat(stringify(obj[key], generateArrayPrefix(prefix, key), generateArrayPrefix, strictNullHandling, skipNulls, encoder, filter, sort, allowDots, serializeDate, formatter, encodeValuesOnly));
+    } else {
+      values = values.concat(stringify(obj[key], prefix + (allowDots ? '.' + key : '[' + key + ']'), generateArrayPrefix, strictNullHandling, skipNulls, encoder, filter, sort, allowDots, serializeDate, formatter, encodeValuesOnly));
+    }
+  }
+
+  return values;
+};
+
+module.exports = function (object, opts) {
+  var obj = object;
+  var options = opts ? utils.assign({}, opts) : {};
+
+  if (options.encoder !== null && options.encoder !== undefined && typeof options.encoder !== 'function') {
+    throw new TypeError('Encoder has to be a function.');
+  }
+
+  var delimiter = typeof options.delimiter === 'undefined' ? defaults.delimiter : options.delimiter;
+  var strictNullHandling = typeof options.strictNullHandling === 'boolean' ? options.strictNullHandling : defaults.strictNullHandling;
+  var skipNulls = typeof options.skipNulls === 'boolean' ? options.skipNulls : defaults.skipNulls;
+  var encode = typeof options.encode === 'boolean' ? options.encode : defaults.encode;
+  var encoder = typeof options.encoder === 'function' ? options.encoder : defaults.encoder;
+  var sort = typeof options.sort === 'function' ? options.sort : null;
+  var allowDots = typeof options.allowDots === 'undefined' ? false : options.allowDots;
+  var serializeDate = typeof options.serializeDate === 'function' ? options.serializeDate : defaults.serializeDate;
+  var encodeValuesOnly = typeof options.encodeValuesOnly === 'boolean' ? options.encodeValuesOnly : defaults.encodeValuesOnly;
+
+  if (typeof options.format === 'undefined') {
+    options.format = formats['default'];
+  } else if (!Object.prototype.hasOwnProperty.call(formats.formatters, options.format)) {
+    throw new TypeError('Unknown format option provided.');
+  }
+
+  var formatter = formats.formatters[options.format];
+  var objKeys;
+  var filter;
+
+  if (typeof options.filter === 'function') {
+    filter = options.filter;
+    obj = filter('', obj);
+  } else if (Array.isArray(options.filter)) {
+    filter = options.filter;
+    objKeys = filter;
+  }
+
+  var keys = [];
+
+  if (typeof obj !== 'object' || obj === null) {
+    return '';
+  }
+
+  var arrayFormat;
+
+  if (options.arrayFormat in arrayPrefixGenerators) {
+    arrayFormat = options.arrayFormat;
+  } else if ('indices' in options) {
+    arrayFormat = options.indices ? 'indices' : 'repeat';
+  } else {
+    arrayFormat = 'indices';
+  }
+
+  var generateArrayPrefix = arrayPrefixGenerators[arrayFormat];
+
+  if (!objKeys) {
+    objKeys = Object.keys(obj);
+  }
+
+  if (sort) {
+    objKeys.sort(sort);
+  }
+
+  for (var i = 0; i < objKeys.length; ++i) {
+    var key = objKeys[i];
+
+    if (skipNulls && obj[key] === null) {
+      continue;
+    }
+
+    keys = keys.concat(stringify(obj[key], key, generateArrayPrefix, strictNullHandling, skipNulls, encode ? encoder : null, filter, sort, allowDots, serializeDate, formatter, encodeValuesOnly));
+  }
+
+  var joined = keys.join(delimiter);
+  var prefix = options.addQueryPrefix === true ? '?' : '';
+  return joined.length > 0 ? prefix + joined : '';
+};
+},{"./utils":"../node_modules/qs/lib/utils.js","./formats":"../node_modules/qs/lib/formats.js"}],"../node_modules/qs/lib/parse.js":[function(require,module,exports) {
+'use strict';
+
+var utils = require('./utils');
+
+var has = Object.prototype.hasOwnProperty;
+var defaults = {
+  allowDots: false,
+  allowPrototypes: false,
+  arrayLimit: 20,
+  decoder: utils.decode,
+  delimiter: '&',
+  depth: 5,
+  parameterLimit: 1000,
+  plainObjects: false,
+  strictNullHandling: false
+};
+
+var parseValues = function parseQueryStringValues(str, options) {
+  var obj = {};
+  var cleanStr = options.ignoreQueryPrefix ? str.replace(/^\?/, '') : str;
+  var limit = options.parameterLimit === Infinity ? undefined : options.parameterLimit;
+  var parts = cleanStr.split(options.delimiter, limit);
+
+  for (var i = 0; i < parts.length; ++i) {
+    var part = parts[i];
+    var bracketEqualsPos = part.indexOf(']=');
+    var pos = bracketEqualsPos === -1 ? part.indexOf('=') : bracketEqualsPos + 1;
+    var key, val;
+
+    if (pos === -1) {
+      key = options.decoder(part, defaults.decoder);
+      val = options.strictNullHandling ? null : '';
+    } else {
+      key = options.decoder(part.slice(0, pos), defaults.decoder);
+      val = options.decoder(part.slice(pos + 1), defaults.decoder);
+    }
+
+    if (has.call(obj, key)) {
+      obj[key] = [].concat(obj[key]).concat(val);
+    } else {
+      obj[key] = val;
+    }
+  }
+
+  return obj;
+};
+
+var parseObject = function (chain, val, options) {
+  var leaf = val;
+
+  for (var i = chain.length - 1; i >= 0; --i) {
+    var obj;
+    var root = chain[i];
+
+    if (root === '[]') {
+      obj = [];
+      obj = obj.concat(leaf);
+    } else {
+      obj = options.plainObjects ? Object.create(null) : {};
+      var cleanRoot = root.charAt(0) === '[' && root.charAt(root.length - 1) === ']' ? root.slice(1, -1) : root;
+      var index = parseInt(cleanRoot, 10);
+
+      if (!isNaN(index) && root !== cleanRoot && String(index) === cleanRoot && index >= 0 && options.parseArrays && index <= options.arrayLimit) {
+        obj = [];
+        obj[index] = leaf;
+      } else {
+        obj[cleanRoot] = leaf;
+      }
+    }
+
+    leaf = obj;
+  }
+
+  return leaf;
+};
+
+var parseKeys = function parseQueryStringKeys(givenKey, val, options) {
+  if (!givenKey) {
+    return;
+  } // Transform dot notation to bracket notation
+
+
+  var key = options.allowDots ? givenKey.replace(/\.([^.[]+)/g, '[$1]') : givenKey; // The regex chunks
+
+  var brackets = /(\[[^[\]]*])/;
+  var child = /(\[[^[\]]*])/g; // Get the parent
+
+  var segment = brackets.exec(key);
+  var parent = segment ? key.slice(0, segment.index) : key; // Stash the parent if it exists
+
+  var keys = [];
+
+  if (parent) {
+    // If we aren't using plain objects, optionally prefix keys
+    // that would overwrite object prototype properties
+    if (!options.plainObjects && has.call(Object.prototype, parent)) {
+      if (!options.allowPrototypes) {
+        return;
+      }
+    }
+
+    keys.push(parent);
+  } // Loop through children appending to the array until we hit depth
+
+
+  var i = 0;
+
+  while ((segment = child.exec(key)) !== null && i < options.depth) {
+    i += 1;
+
+    if (!options.plainObjects && has.call(Object.prototype, segment[1].slice(1, -1))) {
+      if (!options.allowPrototypes) {
+        return;
+      }
+    }
+
+    keys.push(segment[1]);
+  } // If there's a remainder, just add whatever is left
+
+
+  if (segment) {
+    keys.push('[' + key.slice(segment.index) + ']');
+  }
+
+  return parseObject(keys, val, options);
+};
+
+module.exports = function (str, opts) {
+  var options = opts ? utils.assign({}, opts) : {};
+
+  if (options.decoder !== null && options.decoder !== undefined && typeof options.decoder !== 'function') {
+    throw new TypeError('Decoder has to be a function.');
+  }
+
+  options.ignoreQueryPrefix = options.ignoreQueryPrefix === true;
+  options.delimiter = typeof options.delimiter === 'string' || utils.isRegExp(options.delimiter) ? options.delimiter : defaults.delimiter;
+  options.depth = typeof options.depth === 'number' ? options.depth : defaults.depth;
+  options.arrayLimit = typeof options.arrayLimit === 'number' ? options.arrayLimit : defaults.arrayLimit;
+  options.parseArrays = options.parseArrays !== false;
+  options.decoder = typeof options.decoder === 'function' ? options.decoder : defaults.decoder;
+  options.allowDots = typeof options.allowDots === 'boolean' ? options.allowDots : defaults.allowDots;
+  options.plainObjects = typeof options.plainObjects === 'boolean' ? options.plainObjects : defaults.plainObjects;
+  options.allowPrototypes = typeof options.allowPrototypes === 'boolean' ? options.allowPrototypes : defaults.allowPrototypes;
+  options.parameterLimit = typeof options.parameterLimit === 'number' ? options.parameterLimit : defaults.parameterLimit;
+  options.strictNullHandling = typeof options.strictNullHandling === 'boolean' ? options.strictNullHandling : defaults.strictNullHandling;
+
+  if (str === '' || str === null || typeof str === 'undefined') {
+    return options.plainObjects ? Object.create(null) : {};
+  }
+
+  var tempObj = typeof str === 'string' ? parseValues(str, options) : str;
+  var obj = options.plainObjects ? Object.create(null) : {}; // Iterate over the keys and setup the new object
+
+  var keys = Object.keys(tempObj);
+
+  for (var i = 0; i < keys.length; ++i) {
+    var key = keys[i];
+    var newObj = parseKeys(key, tempObj[key], options);
+    obj = utils.merge(obj, newObj, options);
+  }
+
+  return utils.compact(obj);
+};
+},{"./utils":"../node_modules/qs/lib/utils.js"}],"../node_modules/qs/lib/index.js":[function(require,module,exports) {
+'use strict';
+
+var stringify = require('./stringify');
+
+var parse = require('./parse');
+
+var formats = require('./formats');
+
+module.exports = {
+  formats: formats,
+  parse: parse,
+  stringify: stringify
+};
+},{"./stringify":"../node_modules/qs/lib/stringify.js","./parse":"../node_modules/qs/lib/parse.js","./formats":"../node_modules/qs/lib/formats.js"}],"../node_modules/contentful-sdk-core/dist/es-modules/rate-limit.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = rateLimit;
+var attempts = {};
+var defaultsByInstance = new Map();
+var networkErrorAttempts = 0;
+
+function rateLimit(instance, defaults) {
+  var maxRetry = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 5;
+  defaultsByInstance.set(instance, defaults);
+  var instanceDefaults = defaultsByInstance.get(instance);
+  var _instanceDefaults$res = instanceDefaults.responseLogger,
+      responseLogger = _instanceDefaults$res === void 0 ? function () {
+    return undefined;
+  } : _instanceDefaults$res,
+      _instanceDefaults$req = instanceDefaults.requestLogger,
+      requestLogger = _instanceDefaults$req === void 0 ? function () {
+    return undefined;
+  } : _instanceDefaults$req;
+  instance.interceptors.request.use(function (config) {
+    requestLogger(config);
+    return config;
+  }, function (error) {
+    return Promise.reject(error);
+  });
+  instance.interceptors.response.use(function (response) {
+    // we don't need to do anything here
+    responseLogger(response);
+    return response;
+  }, function (error) {
+    var response = error.response,
+        config = error.config; // Do not retry if it is disabled or no request config exists (not an axios error)
+
+    if (!config || !instanceDefaults.retryOnError) {
+      return Promise.reject(error);
+    }
+
+    var retryErrorType = null;
+    var wait = 0; // Errors without response did not recieve anything from the server
+
+    if (!response) {
+      retryErrorType = 'Connection';
+      networkErrorAttempts++;
+
+      if (networkErrorAttempts > maxRetry) {
+        error.attempts = networkErrorAttempts;
+        return Promise.reject(error);
+      }
+
+      wait = Math.pow(Math.SQRT2, networkErrorAttempts);
+      response = {};
+    } else {
+      networkErrorAttempts = 0;
+    }
+
+    if (response.status >= 500 && response.status < 600) {
+      // 5** errors are server related
+      retryErrorType = "Server ".concat(response.status);
+      var headers = response.headers || {};
+      var requestId = headers['x-contentful-request-id'] || null;
+      attempts[requestId] = attempts[requestId] || 0;
+      attempts[requestId]++; // we reject if there are too many errors with the same request id or request id is not defined
+
+      if (attempts[requestId] > maxRetry || !requestId) {
+        error.attempts = attempts[requestId];
+        return Promise.reject(error);
+      }
+
+      wait = Math.pow(Math.SQRT2, attempts[requestId]);
+    } else if (response.status === 429) {
+      // 429 errors are exceeded rate limit exceptions
+      retryErrorType = 'Rate limit'; // all headers are lowercased by axios https://github.com/mzabriskie/axios/issues/413
+
+      if (response.headers && error.response.headers['x-contentful-ratelimit-reset']) {
+        wait = response.headers['x-contentful-ratelimit-reset'];
+      }
+    }
+
+    var delay = function delay(ms) {
+      return new Promise(function (resolve) {
+        setTimeout(resolve, ms);
+      });
+    };
+
+    if (retryErrorType) {
+      // convert to ms and add jitter
+      wait = Math.floor(wait * 1000 + Math.random() * 200 + 500);
+      instanceDefaults.logHandler('warning', "".concat(retryErrorType, " error occurred. Waiting for ").concat(wait, " ms before retrying..."));
+      /* Somehow between the interceptor and retrying the request the httpAgent/httpsAgent gets transformed from an Agent-like object
+         to a regular object, causing failures on retries after rate limits. Removing these properties here fixes the error, but retry
+         requests still use the original http/httpsAgent property */
+
+      delete config.httpAgent;
+      delete config.httpsAgent;
+      return delay(wait).then(function () {
+        return instance(config);
+      });
+    }
+
+    return Promise.reject(error);
+  });
+}
+},{}],"../node_modules/contentful-sdk-core/dist/es-modules/utils.js":[function(require,module,exports) {
+var process = require("process");
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.isNode = isNode;
+exports.getNodeVersion = getNodeVersion;
+
+function isNode() {
+  /**
+   * Polyfills of 'process' might set process.browser === true
+   *
+   * See:
+   * https://github.com/webpack/node-libs-browser/blob/master/mock/process.js#L8
+   * https://github.com/defunctzombie/node-process/blob/master/browser.js#L156
+  **/
+  return typeof process !== 'undefined' && !true;
+}
+
+function getNodeVersion() {
+  return process.versions.node ? "v".concat(process.versions.node) : process.version;
+}
+},{"process":"../node_modules/process/browser.js"}],"../node_modules/contentful-sdk-core/dist/es-modules/create-http-client.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = createHttpClient;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _qs = _interopRequireDefault(require("qs"));
+
+var _rateLimit = _interopRequireDefault(require("./rate-limit"));
+
+var _utils = require("./utils");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _slicedToArray(arr, i) {
+  return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _nonIterableRest();
+}
+
+function _nonIterableRest() {
+  throw new TypeError("Invalid attempt to destructure non-iterable instance");
+}
+
+function _iterableToArrayLimit(arr, i) {
+  var _arr = [];
+  var _n = true;
+  var _d = false;
+  var _e = undefined;
+
+  try {
+    for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) {
+      _arr.push(_s.value);
+
+      if (i && _arr.length === i) break;
+    }
+  } catch (err) {
+    _d = true;
+    _e = err;
+  } finally {
+    try {
+      if (!_n && _i["return"] != null) _i["return"]();
+    } finally {
+      if (_d) throw _e;
+    }
+  }
+
+  return _arr;
+}
+
+function _arrayWithHoles(arr) {
+  if (Array.isArray(arr)) return arr;
+}
+
+function _objectSpread(target) {
+  for (var i = 1; i < arguments.length; i++) {
+    var source = arguments[i] != null ? arguments[i] : {};
+    var ownKeys = Object.keys(source);
+
+    if (typeof Object.getOwnPropertySymbols === 'function') {
+      ownKeys = ownKeys.concat(Object.getOwnPropertySymbols(source).filter(function (sym) {
+        return Object.getOwnPropertyDescriptor(source, sym).enumerable;
+      }));
+    }
+
+    ownKeys.forEach(function (key) {
+      _defineProperty(target, key, source[key]);
+    });
+  }
+
+  return target;
+}
+
+function _defineProperty(obj, key, value) {
+  if (key in obj) {
+    Object.defineProperty(obj, key, {
+      value: value,
+      enumerable: true,
+      configurable: true,
+      writable: true
+    });
+  } else {
+    obj[key] = value;
+  }
+
+  return obj;
+}
+
+// Matches 'sub.host:port' and extracts hostname and port
+// Also enforces toplevel domain specified, no spaces and no protocol
+var HOST_REGEX = /^(?!\w+:\/\/)([^\s:]+\.[^\s:]+)(?::(\d+))?(?!:)$/;
+/**
+ * Create pre configured axios instance
+ * @private
+ * @param {Object} axios - Axios library
+ * @param {Object} httpClientParams - Initialization parameters for the HTTP client
+ * @prop {string} space - Space ID
+ * @prop {string} accessToken - Access Token
+ * @prop {boolean=} insecure - If we should use http instead
+ * @prop {string=} host - Alternate host
+ * @prop {Object=} httpAgent - HTTP agent for node
+ * @prop {Object=} httpsAgent - HTTPS agent for node
+ * @prop {function=} adapter - Axios adapter to handle requests
+ * @prop {function=} requestLogger - Gets called on every request triggered by the SDK, takes the axios request config as an argument
+ * @prop {function=} responseLogger - Gets called on every response, takes axios response object as an argument
+ * @prop {Object=} proxy - Axios proxy config
+ * @prop {Object=} headers - Additional headers
+ * @prop {function=} logHandler - A log handler function to process given log messages & errors. Receives the log level (error, warning & info) and the actual log data (Error object or string). (Default can be found here: https://github.com/contentful/contentful-sdk-core/blob/master/lib/create-http-client.js)
+ * @return {Object} Initialized axios instance
+ */
+
+function createHttpClient(axios, options) {
+  var defaultConfig = {
+    insecure: false,
+    retryOnError: true,
+    logHandler: function logHandler(level, data) {
+      if (level === 'error' && data) {
+        var title = [data.name, data.message].filter(function (a) {
+          return a;
+        }).join(' - ');
+        console.error("[error] ".concat(title));
+        console.error(data);
+        return;
+      }
+
+      console.log("[".concat(level, "] ").concat(data));
+    },
+    // Passed to axios
+    headers: {},
+    httpAgent: false,
+    httpsAgent: false,
+    timeout: 30000,
+    proxy: false,
+    basePath: '',
+    adapter: false,
+    maxContentLength: 1073741824 // 1GB
+
+  };
+
+  var config = _objectSpread({}, defaultConfig, options);
+
+  if (!config.accessToken) {
+    var missingAccessTokenError = new TypeError('Expected parameter accessToken');
+    config.logHandler('error', missingAccessTokenError);
+    throw missingAccessTokenError;
+  } // Construct axios baseURL option
+
+
+  var protocol = config.insecure ? 'http' : 'https';
+  var space = config.space ? "".concat(config.space, "/") : '';
+  var hostname = config.defaultHostname;
+  var port = config.insecure ? 80 : 443;
+
+  if (HOST_REGEX.test(config.host)) {
+    var parsed = config.host.split(':');
+
+    if (parsed.length === 2) {
+      var _parsed = _slicedToArray(parsed, 2);
+
+      hostname = _parsed[0];
+      port = _parsed[1];
+    } else {
+      hostname = parsed[0];
+    }
+  } // Ensure that basePath does start but not end with a slash
+
+
+  if (config.basePath) {
+    config.basePath = "/".concat(config.basePath.split('/').filter(Boolean).join('/'));
+  }
+
+  var baseURL = options.baseURL || "".concat(protocol, "://").concat(hostname, ":").concat(port).concat(config.basePath, "/spaces/").concat(space);
+
+  if (!config.headers['Authorization']) {
+    config.headers['Authorization'] = 'Bearer ' + config.accessToken;
+  } // Set these headers only for node because browsers don't like it when you
+  // override user-agent or accept-encoding.
+  // The SDKs should set their own X-Contentful-User-Agent.
+
+
+  if ((0, _utils.isNode)()) {
+    config.headers['user-agent'] = 'node.js/' + (0, _utils.getNodeVersion)();
+    config.headers['Accept-Encoding'] = 'gzip';
+  }
+
+  var axiosOptions = {
+    // Axios
+    baseURL: baseURL,
+    headers: config.headers,
+    httpAgent: config.httpAgent,
+    httpsAgent: config.httpsAgent,
+    paramsSerializer: _qs.default.stringify,
+    proxy: config.proxy,
+    timeout: config.timeout,
+    adapter: config.adapter,
+    maxContentLength: config.maxContentLength,
+    // Contentful
+    logHandler: config.logHandler,
+    responseLogger: config.responseLogger,
+    requestLogger: config.requestLogger,
+    retryOnError: config.retryOnError
+  };
+  var instance = axios.create(axiosOptions);
+  instance.httpClientParams = options;
+  /**
+   * Creates a new axios instance with the same default base parameters as the
+   * current one, and with any overrides passed to the newParams object
+   * This is useful as the SDKs use dependency injection to get the axios library
+   * and the version of the library comes from different places depending
+   * on whether it's a browser build or a node.js build.
+   * @private
+   * @param {Object} httpClientParams - Initialization parameters for the HTTP client
+   * @return {Object} Initialized axios instance
+   */
+
+  instance.cloneWithNewParams = function (newParams) {
+    return createHttpClient(axios, _objectSpread({}, (0, _cloneDeep.default)(options), newParams));
+  };
+
+  (0, _rateLimit.default)(instance, axiosOptions);
+  return instance;
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","qs":"../node_modules/qs/lib/index.js","./rate-limit":"../node_modules/contentful-sdk-core/dist/es-modules/rate-limit.js","./utils":"../node_modules/contentful-sdk-core/dist/es-modules/utils.js"}],"../node_modules/contentful-sdk-core/dist/es-modules/create-request-config.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = createRequestConfig;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Creates request parameters configuration by parsing an existing query object
+ * @private
+ * @param {Object} query
+ * @return {Object} Config object with `params` property, ready to be used in axios
+ */
+function createRequestConfig(_ref) {
+  var query = _ref.query;
+  var config = {};
+  delete query.resolveLinks;
+  config.params = (0, _cloneDeep.default)(query);
+  return config;
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js"}],"../node_modules/contentful-sdk-core/dist/es-modules/enforce-obj-path.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = enforceObjPath;
+
+function enforceObjPath(obj, path) {
+  if (!(path in obj)) {
+    var err = new Error();
+    err.name = 'PropertyMissing';
+    err.message = "Required property ".concat(path, " missing from:\n\n").concat(JSON.stringify(obj), "\n\n");
+    throw err;
+  }
+
+  return true;
+}
+},{}],"../node_modules/lodash/isPlainObject.js":[function(require,module,exports) {
+var baseGetTag = require('./_baseGetTag'),
+    getPrototype = require('./_getPrototype'),
+    isObjectLike = require('./isObjectLike');
+
+/** `Object#toString` result references. */
+var objectTag = '[object Object]';
+
+/** Used for built-in method references. */
+var funcProto = Function.prototype,
+    objectProto = Object.prototype;
+
+/** Used to resolve the decompiled source of functions. */
+var funcToString = funcProto.toString;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/** Used to infer the `Object` constructor. */
+var objectCtorString = funcToString.call(Object);
+
+/**
+ * Checks if `value` is a plain object, that is, an object created by the
+ * `Object` constructor or one with a `[[Prototype]]` of `null`.
+ *
+ * @static
+ * @memberOf _
+ * @since 0.8.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a plain object, else `false`.
+ * @example
+ *
+ * function Foo() {
+ *   this.a = 1;
+ * }
+ *
+ * _.isPlainObject(new Foo);
+ * // => false
+ *
+ * _.isPlainObject([1, 2, 3]);
+ * // => false
+ *
+ * _.isPlainObject({ 'x': 0, 'y': 0 });
+ * // => true
+ *
+ * _.isPlainObject(Object.create(null));
+ * // => true
+ */
+function isPlainObject(value) {
+  if (!isObjectLike(value) || baseGetTag(value) != objectTag) {
+    return false;
+  }
+  var proto = getPrototype(value);
+  if (proto === null) {
+    return true;
+  }
+  var Ctor = hasOwnProperty.call(proto, 'constructor') && proto.constructor;
+  return typeof Ctor == 'function' && Ctor instanceof Ctor &&
+    funcToString.call(Ctor) == objectCtorString;
+}
+
+module.exports = isPlainObject;
+
+},{"./_baseGetTag":"../node_modules/lodash/_baseGetTag.js","./_getPrototype":"../node_modules/lodash/_getPrototype.js","./isObjectLike":"../node_modules/lodash/isObjectLike.js"}],"../node_modules/contentful-sdk-core/dist/es-modules/freeze-sys.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = freezeSys;
+
+var _isPlainObject = _interopRequireDefault(require("lodash/isPlainObject"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function freezeObjectDeep(obj) {
+  Object.keys(obj).forEach(function (key) {
+    var value = obj[key];
+
+    if ((0, _isPlainObject.default)(value)) {
+      freezeObjectDeep(value);
+    }
+  });
+  return Object.freeze(obj);
+}
+
+function freezeSys(obj) {
+  freezeObjectDeep(obj.sys || {});
+  return obj;
+}
+},{"lodash/isPlainObject":"../node_modules/lodash/isPlainObject.js"}],"../node_modules/contentful-sdk-core/dist/es-modules/get-user-agent.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = getUserAgentHeader;
+
+var _os = require("os");
+
+var _utils = require("./utils");
+
+function isReactNative() {
+  return typeof window !== 'undefined' && 'navigator' in window && 'product' in window.navigator && window.navigator.product === 'ReactNative';
+}
+
+function getBrowserOS() {
+  if (!window) {
+    return null;
+  }
+
+  var userAgent = window.navigator.userAgent;
+  var platform = window.navigator.platform;
+  var macosPlatforms = ['Macintosh', 'MacIntel', 'MacPPC', 'Mac68K'];
+  var windowsPlatforms = ['Win32', 'Win64', 'Windows', 'WinCE'];
+  var iosPlatforms = ['iPhone', 'iPad', 'iPod'];
+  var os = null;
+
+  if (macosPlatforms.indexOf(platform) !== -1) {
+    os = 'macOS';
+  } else if (iosPlatforms.indexOf(platform) !== -1) {
+    os = 'iOS';
+  } else if (windowsPlatforms.indexOf(platform) !== -1) {
+    os = 'Windows';
+  } else if (/Android/.test(userAgent)) {
+    os = 'Android';
+  } else if (/Linux/.test(platform)) {
+    os = 'Linux';
+  }
+
+  return os;
+}
+
+function getNodeOS() {
+  var os = (0, _os.platform)() || 'linux';
+  var version = (0, _os.release)() || '0.0.0';
+  var osMap = {
+    android: 'Android',
+    aix: 'Linux',
+    darwin: 'macOS',
+    freebsd: 'Linux',
+    linux: 'Linux',
+    openbsd: 'Linux',
+    sunos: 'Linux',
+    win32: 'Windows'
+  };
+
+  if (os in osMap) {
+    return "".concat(osMap[os] || 'Linux', "/").concat(version);
+  }
+
+  return null;
+}
+
+function getUserAgentHeader(sdk, application, integration, feature) {
+  var headerParts = [];
+
+  if (application) {
+    headerParts.push("app ".concat(application));
+  }
+
+  if (integration) {
+    headerParts.push("integration ".concat(integration));
+  }
+
+  if (feature) {
+    headerParts.push('feature ' + feature);
+  }
+
+  headerParts.push("sdk ".concat(sdk));
+  var os = null;
+
+  try {
+    if (isReactNative()) {
+      os = getBrowserOS();
+      headerParts.push('platform ReactNative');
+    } else if ((0, _utils.isNode)()) {
+      os = getNodeOS();
+      headerParts.push("platform node.js/".concat((0, _utils.getNodeVersion)()));
+    } else {
+      os = getBrowserOS();
+      headerParts.push("platform browser");
+    }
+  } catch (e) {
+    os = null;
+  }
+
+  if (os) {
+    headerParts.push("os ".concat(os));
+  }
+
+  return "".concat(headerParts.filter(function (item) {
+    return item !== '';
+  }).join('; '), ";");
+}
+},{"os":"../node_modules/parcel-bundler/src/builtins/_empty.js","./utils":"../node_modules/contentful-sdk-core/dist/es-modules/utils.js"}],"../node_modules/contentful-sdk-core/dist/es-modules/to-plain-object.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = toPlainObject;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Mixes in a method to return just a plain object with no additional methods
+ * @private
+ * @param {Object} data - Any plain JSON response returned from the API
+ * @return {Object} Enhanced object with toPlainObject method
+ */
+function toPlainObject(data) {
+  return Object.defineProperty(data, 'toPlainObject', {
+    enumerable: false,
+    configurable: false,
+    writable: false,
+    value: function value() {
+      return (0, _cloneDeep.default)(this);
+    }
+  });
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js"}],"../node_modules/contentful-sdk-core/index.es-modules.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+Object.defineProperty(exports, "createHttpClient", {
+  enumerable: true,
+  get: function () {
+    return _createHttpClient.default;
+  }
+});
+Object.defineProperty(exports, "createRequestConfig", {
+  enumerable: true,
+  get: function () {
+    return _createRequestConfig.default;
+  }
+});
+Object.defineProperty(exports, "enforceObjPath", {
+  enumerable: true,
+  get: function () {
+    return _enforceObjPath.default;
+  }
+});
+Object.defineProperty(exports, "freezeSys", {
+  enumerable: true,
+  get: function () {
+    return _freezeSys.default;
+  }
+});
+Object.defineProperty(exports, "getUserAgentHeader", {
+  enumerable: true,
+  get: function () {
+    return _getUserAgent.default;
+  }
+});
+Object.defineProperty(exports, "toPlainObject", {
+  enumerable: true,
+  get: function () {
+    return _toPlainObject.default;
+  }
+});
+
+var _createHttpClient = _interopRequireDefault(require("./dist/es-modules/create-http-client"));
+
+var _createRequestConfig = _interopRequireDefault(require("./dist/es-modules/create-request-config"));
+
+var _enforceObjPath = _interopRequireDefault(require("./dist/es-modules/enforce-obj-path"));
+
+var _freezeSys = _interopRequireDefault(require("./dist/es-modules/freeze-sys"));
+
+var _getUserAgent = _interopRequireDefault(require("./dist/es-modules/get-user-agent"));
+
+var _toPlainObject = _interopRequireDefault(require("./dist/es-modules/to-plain-object"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+},{"./dist/es-modules/create-http-client":"../node_modules/contentful-sdk-core/dist/es-modules/create-http-client.js","./dist/es-modules/create-request-config":"../node_modules/contentful-sdk-core/dist/es-modules/create-request-config.js","./dist/es-modules/enforce-obj-path":"../node_modules/contentful-sdk-core/dist/es-modules/enforce-obj-path.js","./dist/es-modules/freeze-sys":"../node_modules/contentful-sdk-core/dist/es-modules/freeze-sys.js","./dist/es-modules/get-user-agent":"../node_modules/contentful-sdk-core/dist/es-modules/get-user-agent.js","./dist/es-modules/to-plain-object":"../node_modules/contentful-sdk-core/dist/es-modules/to-plain-object.js"}],"../node_modules/contentful-management/dist/es-modules/error-handler.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = errorHandler;
+
+var _isPlainObject = _interopRequireDefault(require("lodash/isPlainObject"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Handles errors received from the server. Parses the error into a more useful
+ * format, places it in an exception and throws it.
+ * See https://www.contentful.com/developers/docs/references/errors/
+ * for more details on the data received on the errorResponse.data property
+ * and the expected error codes.
+ * @private
+ * @param {Object} errorResponse - Error received from an axios request
+ * @throws {ErrorResponse}
+ */
+function errorHandler(errorResponse) {
+  var config = errorResponse.config,
+      response = errorResponse.response;
+  var errorName = void 0;
+
+  if (!(0, _isPlainObject.default)(response) || !(0, _isPlainObject.default)(config)) {
+    throw errorResponse;
+  }
+
+  var data = response.data;
+  var errorData = {
+    status: response.status,
+    statusText: response.statusText,
+    message: '',
+    details: {} // Obscure the Management token
+
+  };
+
+  if (config.headers && config.headers['Authorization']) {
+    var token = '...' + config.headers['Authorization'].substr(-5);
+    config.headers['Authorization'] = 'Bearer ' + token;
+  }
+
+  if ((0, _isPlainObject.default)(config)) {
+    errorData.request = {
+      url: config.url,
+      headers: config.headers,
+      method: config.method,
+      payloadData: config.data
+    };
+  }
+
+  if ((0, _isPlainObject.default)(data)) {
+    if ('requestId' in data) {
+      errorData.requestId = data.requestId || 'UNKNOWN';
+    }
+
+    if ('message' in data) {
+      errorData.message = data.message || '';
+    }
+
+    if ('details' in data) {
+      errorData.details = data.details || {};
+    }
+
+    if ('sys' in data) {
+      if ('id' in data.sys) {
+        errorName = data.sys.id;
+      }
+    }
+  }
+
+  var error = new Error();
+  error.name = errorName && errorName !== 'Unknown' ? errorName : response.status + ' ' + response.statusText;
+  error.message = JSON.stringify(errorData, null, '  ');
+  throw error;
+}
+},{"lodash/isPlainObject":"../node_modules/lodash/isPlainObject.js"}],"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = enhanceWithMethods;
+
+/**
+ * This method enhances a base object which would normally contain data, with
+ * methods from another object that might work on manipulating that data.
+ * All the added methods are set as non enumerable, non configurable, and non
+ * writable properties. This ensures that if we try to clone or stringify the
+ * base object, we don't have to worry about these additional methods.
+ * @private
+ * @param {object} baseObject - Base object with data
+ * @param {object} methodsObject - Object with methods as properties. The key
+ * values used here will be the same that will be defined on the baseObject.
+ */
+function enhanceWithMethods(baseObject, methodsObject) {
+  return Object.keys(methodsObject).reduce(function (enhancedObject, methodName) {
+    Object.defineProperty(enhancedObject, methodName, {
+      enumerable: false,
+      configurable: false,
+      writable: false,
+      value: methodsObject[methodName]
+    });
+    return enhancedObject;
+  }, baseObject);
+}
+},{}],"../node_modules/contentful-management/dist/es-modules/create-space-api.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = createSpaceApi;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _errorHandler = _interopRequireDefault(require("./error-handler"));
+
+var _entities = _interopRequireDefault(require("./entities"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var _extends = Object.assign || function (target) {
+  for (var i = 1; i < arguments.length; i++) {
+    var source = arguments[i];
+
+    for (var key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        target[key] = source[key];
+      }
+    }
+  }
+
+  return target;
+};
+
+function _defineProperty(obj, key, value) {
+  if (key in obj) {
+    Object.defineProperty(obj, key, {
+      value: value,
+      enumerable: true,
+      configurable: true,
+      writable: true
+    });
+  } else {
+    obj[key] = value;
+  }
+
+  return obj;
+}
+/**
+ * Contentful Space API. Contains methods to access any operations at a space
+ * level, such as creating and reading entities contained in a space.
+ * @namespace ContentfulSpaceAPI
+ */
+
+
+/**
+ * @memberof ContentfulSpaceAPI
+ * @typedef {Object} ContentfulSpaceAPI
+ * @prop {function} delete
+ * @prop {function} update
+ * @prop {function} getEnvironment
+ * @prop {function} getEnvironments
+ * @prop {function} createEnvironment
+ * @prop {function} createEnvironmentWithId
+ * @prop {function} getContentType
+ * @prop {function} getContentTypes
+ * @prop {function} createContentType
+ * @prop {function} createContentTypeWithId
+ * @prop {function} getEntry
+ * @prop {function} getEntries
+ * @prop {function} createEntry
+ * @prop {function} createEntryWithId
+ * @prop {function} getAsset
+ * @prop {function} getAssets
+ * @prop {function} createAsset
+ * @prop {function} createAssetWithId
+ * @prop {function} getLocale
+ * @prop {function} getLocales
+ * @prop {function} createLocale
+ * @prop {function} getWebhook
+ * @prop {function} getWebhooks
+ * @prop {function} createWebhook
+ * @prop {function} createWebhookWithId
+ * @prop {function} getRole
+ * @prop {function} getRoles
+ * @prop {function} createRole
+ * @prop {function} createRoleWithId
+ * @prop {function} getSpaceMembership
+ * @prop {function} getSpaceMemberships
+ * @prop {function} createSpaceMembership
+ * @prop {function} createSpaceMembershipWithId
+ * @prop {function} getApiKey
+ * @prop {function} getApiKeys
+ * @prop {function} createApiKey
+ * @prop {function} createApiKeyWithId
+ * @prop {function} getUiExtension
+ * @prop {function} getUiExtensions
+ * @prop {function} createUiExtension
+ * @prop {function} createUiExtensionWithId
+ * @prop {function} getEntrySnapshots
+ * @prop {function} getContentTypeSnapshots
+ */
+function raiseDeprecationWarning(method) {
+  console.warn(['Deprecated: Space.' + method + '() will be removed in future major versions.', null, 'Please migrate your code to use Environment.' + method + '():', 'https://contentful.github.io/contentful-management.js/contentful-management/latest/ContentfulEnvironmentAPI.html#.' + method, null].join('\n'));
+}
+/**
+ * Creates API object with methods to access the Space API
+ * @private
+ * @param {Object} params - API initialization params
+ * @prop {Object} http - HTTP client instance
+ * @prop {Object} entities - Object with wrapper methods for each kind of entity
+ * @return {ContentfulSpaceAPI}
+ */
+
+
+function createSpaceApi(_ref) {
+  var http = _ref.http,
+      httpUpload = _ref.httpUpload;
+  var wrapSpace = _entities.default.space.wrapSpace;
+  var _entities$environment = _entities.default.environment,
+      wrapEnvironment = _entities$environment.wrapEnvironment,
+      wrapEnvironmentCollection = _entities$environment.wrapEnvironmentCollection;
+  var _entities$contentType = _entities.default.contentType,
+      wrapContentType = _entities$contentType.wrapContentType,
+      wrapContentTypeCollection = _entities$contentType.wrapContentTypeCollection;
+  var _entities$entry = _entities.default.entry,
+      wrapEntry = _entities$entry.wrapEntry,
+      wrapEntryCollection = _entities$entry.wrapEntryCollection;
+  var _entities$asset = _entities.default.asset,
+      wrapAsset = _entities$asset.wrapAsset,
+      wrapAssetCollection = _entities$asset.wrapAssetCollection;
+  var _entities$locale = _entities.default.locale,
+      wrapLocale = _entities$locale.wrapLocale,
+      wrapLocaleCollection = _entities$locale.wrapLocaleCollection;
+  var _entities$webhook = _entities.default.webhook,
+      wrapWebhook = _entities$webhook.wrapWebhook,
+      wrapWebhookCollection = _entities$webhook.wrapWebhookCollection;
+  var _entities$role = _entities.default.role,
+      wrapRole = _entities$role.wrapRole,
+      wrapRoleCollection = _entities$role.wrapRoleCollection;
+  var _entities$spaceMember = _entities.default.spaceMembership,
+      wrapSpaceMembership = _entities$spaceMember.wrapSpaceMembership,
+      wrapSpaceMembershipCollection = _entities$spaceMember.wrapSpaceMembershipCollection;
+  var _entities$apiKey = _entities.default.apiKey,
+      wrapApiKey = _entities$apiKey.wrapApiKey,
+      wrapApiKeyCollection = _entities$apiKey.wrapApiKeyCollection;
+  var _entities$previewApiK = _entities.default.previewApiKey,
+      wrapPreviewApiKey = _entities$previewApiK.wrapPreviewApiKey,
+      wrapPreviewApiKeyCollection = _entities$previewApiK.wrapPreviewApiKeyCollection;
+  var wrapSnapshotCollection = _entities.default.snapshot.wrapSnapshotCollection;
+  var wrapEditorInterface = _entities.default.editorInterface.wrapEditorInterface;
+  var wrapUpload = _entities.default.upload.wrapUpload;
+  var _entities$uiExtension = _entities.default.uiExtension,
+      wrapUiExtension = _entities$uiExtension.wrapUiExtension,
+      wrapUiExtensionCollection = _entities$uiExtension.wrapUiExtensionCollection;
+  /**
+   * Space instances.
+   * @namespace Space
+   */
+
+  /**
+   * Deletes the space
+   * @memberof Space
+   * @func delete
+   * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.delete())
+   * .then(() => console.log('Space deleted.'))
+   * .catch(console.error)
+  */
+
+  function deleteSpace() {
+    return http.delete('').then(function (response) {}, _errorHandler.default);
+  }
+  /**
+   * Updates the space
+   * @memberof Space
+   * @func update
+   * @return {Promise<Space.Space>} Promise for the updated space.
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => {
+   *   space.name = 'New name'
+   *   return space.update()
+   * })
+   * .then((space) => console.log(`Space ${space.sys.id} renamed.`)
+   * .catch(console.error)
+  */
+
+
+  function updateSpace() {
+    var raw = this.toPlainObject();
+    var data = (0, _cloneDeep.default)(raw);
+    delete data.sys;
+    return http.put('', data, {
+      headers: {
+        'X-Contentful-Version': raw.sys.version
+      }
+    }).then(function (response) {
+      return wrapSpace(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets an environment
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @return {Promise<Environment.Environment>} Promise for an Environment
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environement_id>'))
+   * .then((environment) => console.log(environment))
+   * .catch(console.error)
+   */
+
+
+  function getEnvironment(id) {
+    return http.get('environments/' + id).then(function (response) {
+      return wrapEnvironment(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Environments
+   * @memberof ContentfulSpaceAPI
+   * @return {Promise<Environment.EnvironmentCollection>} Promise for a collection of Environment
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironments())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+  */
+
+
+  function getEnvironments() {
+    return http.get('environments').then(function (response) {
+      return wrapEnvironmentCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates an Environement
+   * @memberof ContentfulSpaceAPI
+   * @see {Environment}
+   * @param {object} [data] - Object representation of the Environment to be created
+   * @return {Promise<Environment.Environment>} Promise for the newly created Environment
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createEnvironment({ name: 'Staging' }))
+   * .then((environment) => console.log(environment))
+   * .catch(console.error)
+   */
+
+
+  function createEnvironment() {
+    var data = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    return http.post('environments', data).then(function (response) {
+      return wrapEnvironment(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates an Environment with a custom id
+   * @memberof ContentfulSpaceAPI
+   * @see {Environment}
+   * @param id string - custom id
+   * @param {object} [data] - Object representation of the Environment to be created
+   * @param sourceEnvironmentId - (Optional) ID of the source environment that will be copied to create the new environment. Default is "master"
+   * @return {Promise<Environment.Environment>} Promise for the newly created Environment
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createEnvironmentWithId('<custom-id>', { name: 'Staging'}, 'master'))
+   * .then((environment) => console.log(environment))
+   * .catch(console.error)
+   */
+
+
+  function createEnvironmentWithId(id) {
+    var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    var sourceEnvironmentId = arguments[2];
+    return http.put('environments/' + id, data, {
+      headers: sourceEnvironmentId ? {
+        'X-Contentful-Source-Environment': sourceEnvironmentId
+      } : {}
+    }).then(function (response) {
+      return wrapEnvironment(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a Content Type
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @return {Promise<ContentType.ContentType>} Promise for a Content Type
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getContentType('<content_type_id>'))
+   * .then((contentType) => console.log(contentType))
+   * .catch(console.error)
+   */
+
+
+  function getContentType(id) {
+    raiseDeprecationWarning('getContentType');
+    return http.get('content_types/' + id).then(function (response) {
+      return wrapContentType(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets an EditorInterface for a ContentType
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} contentTypeId
+   * @return {Promise<EditorInterface.EditorInterface>} Promise for an EditorInterface
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEditorInterfaceForContentType('<content_type_id>'))
+   * .then((EditorInterface) => console.log(EditorInterface))
+   * .catch(console.error)
+   */
+
+
+  function getEditorInterfaceForContentType(contentTypeId) {
+    raiseDeprecationWarning('getEditorInterfaceForContentType');
+    return http.get('content_types/' + contentTypeId + '/editor_interface').then(function (response) {
+      return wrapEditorInterface(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Content Types
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param  {Object - Object with search parameters. Check the <a href="https://www.contentful.com/developers/docs/javascript/tutorials/using-js-cda-sdk/#retrieving-entries-with-search-parameters">JS SDK tutorial</a> and the <a href="https://www.contentful.com/developers/docs/references/content-delivery-api/#/reference/search-parameters">REST API reference</a> for more details.
+   * @return {Promise<ContentType.ContentTypeCollection>} Promise for a collection of Content Types
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getContentTypes())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+  */
+
+
+  function getContentTypes() {
+    var query = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    raiseDeprecationWarning('getContentTypes');
+    return http.get('content_types', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapContentTypeCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Content Type
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @see {ContentType}
+   * @param {object} data - Object representation of the Content Type to be created
+   * @return {Promise<ContentType.ContentType>} Promise for the newly created Content Type
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createContentType({
+   *   name: 'Blog Post',
+   *   fields: [
+   *     {
+   *       id: 'title',
+   *       name: 'Title',
+   *       required: true,
+   *       localized: false,
+   *       type: 'Text'
+   *     }
+   *   ]
+   * }))
+   * .then((contentType) => console.log(contentType))
+   * .catch(console.error)
+   */
+
+
+  function createContentType(data) {
+    raiseDeprecationWarning('createContentType');
+    return http.post('content_types', data).then(function (response) {
+      return wrapContentType(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Content Type with a custom id
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @see {ContentType.ContentType}
+   * @param {string} id - Content Type ID
+   * @param {object} data - Object representation of the Content Type to be created
+   * @return {Promise<ContentType.ContentType>} Promise for the newly created Content Type
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createContentTypeWithId('<custom-id>', {
+   *   name: 'Blog Post',
+   *   fields: [
+   *     {
+   *       id: 'title',
+   *       name: 'Title',
+   *       required: true,
+   *       localized: false,
+   *       type: 'Text'
+   *     }
+   *   ]
+   * }))
+   * .then((contentType) => console.log(contentType))
+   * .catch(console.error)
+   */
+
+
+  function createContentTypeWithId(id, data) {
+    raiseDeprecationWarning('createContentTypeWithId');
+    return http.put('content_types/' + id, data).then(function (response) {
+      return wrapContentType(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets an Entry
+   * Warning: if you are using the select operator, when saving, any field that was not selected will be removed
+   * from your entry in the backend
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @param  {Object=} query - Object with search parameters. In this method it's only useful for `locale`.
+   * @return {Promise<Entry.Entry>} Promise for an Entry
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEntry('<entry-id>'))
+   * .then((entry) => console.log(entry))
+   * .catch(console.error)
+   */
+
+
+  function getEntry(id) {
+    var query = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    raiseDeprecationWarning('getEntry');
+    normalizeSelect(query);
+    return http.get('entries/' + id, (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapEntry(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Entries
+   * Warning: if you are using the select operator, when saving, any field that was not selected will be removed
+   * from your entry in the backend
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param  {Object=} query - Object with search parameters. Check the <a href="https://www.contentful.com/developers/docs/javascript/tutorials/using-js-cda-sdk/#retrieving-entries-with-search-parameters">JS SDK tutorial</a> and the <a href="https://www.contentful.com/developers/docs/references/content-delivery-api/#/reference/search-parameters">REST API reference</a> for more details.
+   * @return {Promise<Entry.EntryCollection>} Promise for a collection of Entries
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEntries({'content_type': 'foo'})) // you can add more queries as 'key': 'value'
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+   */
+
+
+  function getEntries() {
+    var query = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    raiseDeprecationWarning('getEntries');
+    normalizeSelect(query);
+    return http.get('entries', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapEntryCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Entry
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @see {Entry.Entry}
+   * @param {string} contentTypeId - The Content Type which this Entry is based on
+   * @param {object} data - Object representation of the Entry to be created
+   * @return {Promise<Entry.Entry>} Promise for the newly created Entry
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createEntry('<content_type_id>', {
+   *   fields: {
+   *     title: {
+   *       'en-US': 'Entry title'
+   *     }
+   *   }
+   * }))
+   * .then((entry) => console.log(entry))
+   * .catch(console.error)
+   */
+
+
+  function createEntry(contentTypeId, data) {
+    raiseDeprecationWarning('createEntry');
+    return http.post('entries', data, {
+      headers: {
+        'X-Contentful-Content-Type': contentTypeId
+      }
+    }).then(function (response) {
+      return wrapEntry(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Entry with a custom id
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @see {Entry.Entry}
+   * @param {string} contentTypeId - The Content Type which this Entry is based on
+   * @param {string} id - Entry ID
+   * @param {object} data - Object representation of the Entry to be created
+   * @return {Promise<Entry.Entry>} Promise for the newly created Entry
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * // Create entry
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createEntryWithId('<content_type_id>', '<entry_id>', {
+   *   fields: {
+   *     title: {
+   *       'en-US': 'Entry title'
+   *     }
+   *   }
+   * }))
+   * .then((entry) => console.log(entry))
+   * .catch(console.error)
+   */
+
+
+  function createEntryWithId(contentTypeId, id, data) {
+    raiseDeprecationWarning('createEntryWithId');
+    return http.put('entries/' + id, data, {
+      headers: {
+        'X-Contentful-Content-Type': contentTypeId
+      }
+    }).then(function (response) {
+      return wrapEntry(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets an Asset
+   * Warning: if you are using the select operator, when saving, any field that was not selected will be removed
+   * from your entry in the backend
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @param  {Object=} query - Object with search parameters. In this method it's only useful for `locale`.
+   * @return {Promise<Asset.Asset>} Promise for an Asset
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getAsset('<asset_id>'))
+   * .then((asset) => console.log(asset))
+   * .catch(console.error)
+  */
+
+
+  function getAsset(id) {
+    var query = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    raiseDeprecationWarning('getAsset');
+    normalizeSelect(query);
+    return http.get('assets/' + id, (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapAsset(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Assets
+   * Warning: if you are using the select operator, when saving, any field that was not selected will be removed
+   * from your entry in the backend
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param  {Object=} query - Object with search parameters. Check the <a href="https://www.contentful.com/developers/docs/javascript/tutorials/using-js-cda-sdk/#retrieving-entries-with-search-parameters">JS SDK tutorial</a> and the <a href="https://www.contentful.com/developers/docs/references/content-delivery-api/#/reference/search-parameters">REST API reference</a> for more details.
+   * @return {Promise<Asset.AssetCollection>} Promise for a collection of Assets
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getAssets())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+  */
+
+
+  function getAssets() {
+    var query = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    raiseDeprecationWarning('getAssets');
+    normalizeSelect(query);
+    return http.get('assets', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapAssetCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Asset. After creation, call asset.processForLocale or asset.processForAllLocales to start asset processing.
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @see {Asset.Asset}
+   * @param {object} data - Object representation of the Asset to be created. Note that the field object should have an upload property on asset creation, which will be removed and replaced with an url property when processing is finished.
+   * @return {Promise<Asset.Asset>} Promise for the newly created Asset
+   * @example
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * // Create asset
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createAsset({
+   *   fields: {
+   *     title: {
+   *       'en-US': 'Playsam Streamliner'
+   *    },
+   *    file: {
+   *       'en-US': {
+   *         contentType: 'image/jpeg',
+   *        fileName: 'example.jpeg',
+   *        upload: 'https://example.com/example.jpg'
+   *      }
+   *    }
+   *   }
+   * }))
+   * .then((asset) => asset.process())
+   * .then((asset) => console.log(asset))
+   * .catch(console.error)
+   */
+
+
+  function createAsset(data) {
+    return http.post('assets', data).then(function (response) {
+      return wrapAsset(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Asset with a custom id. After creation, call asset.processForLocale or asset.processForAllLocales to start asset processing.
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @see {Asset.Asset}
+   * @param {string} id - Asset ID
+   * @param {object} data - Object representation of the Asset to be created. Note that the field object should have an upload property on asset creation, which will be removed and replaced with an url property when processing is finished.
+   * @return {Promise<Asset.Asset>} Promise for the newly created Asset
+   * @example
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * // Create asset
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createAssetWithId('<asset_id>', {
+   *   title: {
+   *     'en-US': 'Playsam Streamliner'
+   *   },
+   *   file: {
+   *     'en-US': {
+   *       contentType: 'image/jpeg',
+   *       fileName: 'example.jpeg',
+   *       upload: 'https://example.com/example.jpg'
+   *     }
+   *   }
+   * }))
+   * .then((asset) => asset.process())
+   * .then((asset) => console.log(asset))
+   * .catch(console.error)
+   */
+
+
+  function createAssetWithId(id, data) {
+    raiseDeprecationWarning('createAssetWithId');
+    return http.put('assets/' + id, data).then(function (response) {
+      return wrapAsset(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Asset based on files. After creation, call asset.processForLocale or asset.processForAllLocales to start asset processing.
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @see {Asset.Asset}
+   * @param {object} data - Object representation of the Asset to be created. Note that the field object should have an uploadFrom property on asset creation, which will be removed and replaced with an url property when processing is finished.
+   * @param {object} data.fields.file.[LOCALE].file - Can be a string, an ArrayBuffer or a Stream.
+   * @return {Promise<Asset.Asset>} Promise for the newly created Asset
+   * @example
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createAssetFromFiles({
+   *   fields: {
+   *     file: {
+   *       'en-US': {
+   *          contentType: 'image/jpeg',
+   *          fileName: 'filename_english.jpg',
+   *          file: createReadStream('path/to/filename_english.jpg')
+   *       },
+   *       'de-DE': {
+   *          contentType: 'image/svg+xml',
+   *          fileName: 'filename_german.svg',
+   *          file: '<svg><path fill="red" d="M50 50h150v50H50z"/></svg>'
+   *       }
+   *     }
+   *   }
+   * }))
+   * .then((asset) => console.log(asset))
+   * .catch(console.error)
+   */
+
+
+  function createAssetFromFiles(data) {
+    raiseDeprecationWarning('createAssetFromFiles');
+    var file = data.fields.file;
+    return Promise.all(Object.keys(file).map(function (locale) {
+      var _file$locale = file[locale],
+          contentType = _file$locale.contentType,
+          fileName = _file$locale.fileName;
+      return createUpload(file[locale]).then(function (upload) {
+        return _defineProperty({}, locale, {
+          contentType: contentType,
+          fileName: fileName,
+          uploadFrom: {
+            sys: {
+              type: 'Link',
+              linkType: 'Upload',
+              id: upload.sys.id
+            }
+          }
+        });
+      });
+    })).then(function (uploads) {
+      data.fields.file = uploads.reduce(function (fieldsData, upload) {
+        return _extends({}, fieldsData, upload);
+      }, {});
+      return createAsset(data);
+    }).catch(_errorHandler.default);
+  }
+  /**
+   * Creates a Upload.
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param {object} data - Object with file information.
+   * @param {object} data.file - Actual file content. Can be a string, an ArrayBuffer or a Stream.
+   * @return {Promise<Upload>} Upload object containing information about the uploaded file.
+   * @example
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   * const uploadStream = createReadStream('path/to/filename_english.jpg')
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createUpload({file: uploadStream, 'image/png'})
+   * .then((upload) => console.log(upload))
+   * .catch(console.error)
+   */
+
+
+  function createUpload(data) {
+    raiseDeprecationWarning('createUpload');
+    var file = data.file;
+
+    if (!file) {
+      return Promise.reject(new Error('Unable to locate a file to upload.'));
+    }
+
+    return httpUpload.post('uploads', file, {
+      headers: {
+        'Content-Type': 'application/octet-stream'
+      }
+    }).then(function (uploadResponse) {
+      return wrapUpload(httpUpload, uploadResponse.data);
+    }).catch(_errorHandler.default);
+  }
+  /**
+   * Gets an Upload
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @return {Promise<Upload>} Promise for an Upload
+   * @example
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   * const uploadStream = createReadStream('path/to/filename_english.jpg')
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getUpload('<upload-id>')
+   * .then((upload) => console.log(upload))
+   * .catch(console.error)
+   */
+
+
+  function getUpload(id) {
+    raiseDeprecationWarning('getUpload');
+    return httpUpload.get('uploads/' + id).then(function (response) {
+      return wrapUpload(http, response.data);
+    }).catch(_errorHandler.default);
+  }
+  /**
+   * Gets a Locale
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @return {Promise<Locale.Locale>} Promise for an Locale
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getLocale('<locale_id>'))
+   * .then((locale) => console.log(locale))
+   * .catch(console.error)
+  */
+
+
+  function getLocale(id) {
+    raiseDeprecationWarning('getLocale');
+    return http.get('locales/' + id).then(function (response) {
+      return wrapLocale(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Locales
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @return {Promise<Locale.LocaleCollection>} Promise for a collection of Locales
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getLocales())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+  */
+
+
+  function getLocales() {
+    raiseDeprecationWarning('getLocales');
+    return http.get('locales').then(function (response) {
+      return wrapLocaleCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Locale
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @see {Locale.Locale}
+   * @param {object} data - Object representation of the Locale to be created
+   * @return {Promise<Locale.Locale>} Promise for the newly created Locale
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * // Create locale
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createLocale({
+   *   name: 'German (Austria)',
+   *   code: 'de-AT',
+   *   fallbackCode: 'de-DE',
+   *   optional: true
+   * }))
+   * .then((locale) => console.log(locale))
+   * .catch(console.error)
+   */
+
+
+  function createLocale(data) {
+    raiseDeprecationWarning('createLocale');
+    return http.post('locales', data).then(function (response) {
+      return wrapLocale(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a Webhook
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @return {Promise<Webhook.Webhook>} Promise for a Webhook
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getWebhook('<webhook_id>'))
+   * .then((webhook) => console.log(webhook))
+   * .catch(console.error)
+  */
+
+
+  function getWebhook(id) {
+    return http.get('webhook_definitions/' + id).then(function (response) {
+      return wrapWebhook(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Webhooks
+   * @memberof ContentfulSpaceAPI
+   * @return {Promise<Webhook.WebhookCollection>} Promise for a collection of Webhooks
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getWebhooks())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+   */
+
+
+  function getWebhooks() {
+    return http.get('webhook_definitions').then(function (response) {
+      return wrapWebhookCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Webhook
+   * @memberof ContentfulSpaceAPI
+   * @see {Webhook.Webhook}
+   * @param {object} data - Object representation of the Webhook to be created
+   * @return {Promise<Webhook.Webhook>} Promise for the newly created Webhook
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createWebhook({
+   *   'name': 'My webhook',
+   *   'url': 'https://www.example.com/test',
+   *   'topics': [
+   *     'Entry.create',
+   *     'ContentType.create',
+   *     '*.publish',
+   *     'Asset.*'
+   *   ]
+   * }))
+   * .then((webhook) => console.log(webhook))
+   * .catch(console.error)
+   */
+
+
+  function createWebhook(data) {
+    return http.post('webhook_definitions', data).then(function (response) {
+      return wrapWebhook(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Webhook with a custom id
+   * @memberof ContentfulSpaceAPI
+   * @see {Webhook.Webhook}
+   * @param {string} id - Webhook ID
+   * @param {object} data - Object representation of the Webhook to be created
+   * @return {Promise<Webhook.Webhook>} Promise for the newly created Webhook
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createWebhookWithId('<webhook_id>', {
+   *   'name': 'My webhook',
+   *   'url': 'https://www.example.com/test',
+   *   'topics': [
+   *     'Entry.create',
+   *     'ContentType.create',
+   *     '*.publish',
+   *     'Asset.*'
+   *   ]
+   * }))
+   * .then((webhook) => console.log(webhook))
+   * .catch(console.error)
+   */
+
+
+  function createWebhookWithId(id, data) {
+    return http.put('webhook_definitions/' + id, data).then(function (response) {
+      return wrapWebhook(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a Space Membership
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @return {Promise<SpaceMembership.SpaceMembership>} Promise for a Space Membership
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getSpaceMembership('id'))
+   * .then((spaceMembership) => console.log(spaceMembership))
+   * .catch(console.error)
+   */
+
+
+  function getSpaceMembership(id) {
+    return http.get('space_memberships/' + id).then(function (response) {
+      return wrapSpaceMembership(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Space Memberships
+   * @memberof ContentfulSpaceAPI
+   * @param  {Object=} query - Object with search parameters. Check the <a href="https://www.contentful.com/developers/docs/javascript/tutorials/using-js-cda-sdk/#retrieving-entries-with-search-parameters">JS SDK tutorial</a> and the <a href="https://www.contentful.com/developers/docs/references/content-delivery-api/#/reference/search-parameters">REST API reference</a> for more details.
+   * @return {Promise<SpaceMembership.SpaceMembershipCollection>} Promise for a collection of Space Memberships
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getSpaceMemberships({'limit': 100})) // you can add more queries as 'key': 'value'
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+   */
+
+
+  function getSpaceMemberships() {
+    var query = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    return http.get('space_memberships', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapSpaceMembershipCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Space Membership
+   * @memberof ContentfulSpaceAPI
+   * @see {SpaceMembership.SpaceMembership}
+   * @param {object} data - Object representation of the Space Membership to be created
+   * @return {Promise<SpaceMembership.SpaceMembership>} Promise for the newly created Space Membership
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createSpaceMembership({
+   *   admin: false,
+   *   roles: [
+   *     {
+   *       type: 'Link',
+   *       linkType: 'Role',
+   *       id: '<role_id>'
+   *     }
+   *   ],
+   *   email: 'foo@example.com'
+   * }))
+   * .then((spaceMembership) => console.log(spaceMembership))
+   * .catch(console.error)
+   */
+
+
+  function createSpaceMembership(data) {
+    return http.post('space_memberships', data).then(function (response) {
+      return wrapSpaceMembership(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Space Membership with a custom id
+   * @memberof ContentfulSpaceAPI
+   * @see {SpaceMembership.SpaceMembership}
+   * @param {string} id - Space Membership ID
+   * @param {object} data - Object representation of the Space Membership to be created
+   * @return {Promise<SpaceMembership.SpaceMembership>} Promise for the newly created Space Membership
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createSpaceMembershipWithId('<custom-id>', {
+   *   admin: false,
+   *   roles: [
+   *     {
+   *       type: 'Link',
+   *       linkType: 'Role',
+   *       id: '<role_id>'
+   *     }
+   *   ],
+   *   email: 'foo@example.com'
+   * }))
+   * .then((spaceMembership) => console.log(spaceMembership))
+   * .catch(console.error)
+   */
+
+
+  function createSpaceMembershipWithId(id, data) {
+    return http.put('space_memberships/' + id, data).then(function (response) {
+      return wrapSpaceMembership(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a Role
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @return {Promise<Role.Role>} Promise for a Role
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createRole({
+   *   fields: {
+   *     title: {
+   *       'en-US': 'Role title'
+   *     }
+   *   }
+   * }))
+   * .then((role) => console.log(role))
+   * .catch(console.error)
+  */
+
+
+  function getRole(id) {
+    return http.get('roles/' + id).then(function (response) {
+      return wrapRole(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Roles
+   * @memberof ContentfulSpaceAPI
+   * @return {Promise<Role.RoleCollection>} Promise for a collection of Roles
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getRoles())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+   */
+
+
+  function getRoles() {
+    return http.get('roles').then(function (response) {
+      return wrapRoleCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Role
+   * @memberof ContentfulSpaceAPI
+   * @see {Role.Role}
+   * @param {object} data - Object representation of the Role to be created
+   * @return {Promise<Role.Role>} Promise for the newly created Role
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createRole({
+   *   name: 'My Role',
+   *   description: 'foobar role',
+   *   permissions: {
+   *     ContentDelivery: 'all',
+   *     ContentModel: ['read'],
+   *     Settings: []
+   *   },
+   *   policies: [
+   *     {
+   *       effect: 'allow',
+   *       actions: 'all',
+   *       constraint: {
+   *         and: [
+   *           {
+   *             equals: [
+   *               { doc: 'sys.type' },
+   *               'Entry'
+   *             ]
+   *           },
+   *           {
+   *             equals: [
+   *               { doc: 'sys.type' },
+   *               'Asset'
+   *             ]
+   *           }
+   *         ]
+   *       }
+   *     }
+   *   ]
+   * }))
+   * .then((role) => console.log(role))
+   * .catch(console.error)
+   */
+
+
+  function createRole(data) {
+    return http.post('roles', data).then(function (response) {
+      return wrapRole(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Role with a custom id
+   * @memberof ContentfulSpaceAPI
+   * @see {Role.Role}
+   * @param {string} id - Role ID
+   * @param {object} data - Object representation of the Role to be created
+   * @return {Promise<Role.Role>} Promise for the newly created Role
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createRoleWithId(<custom-id>, {
+   *   name: 'My Role',
+   *   description: 'foobar role',
+   *   permissions: {
+   *     ContentDelivery: 'all',
+   *     ContentModel: ['read'],
+   *     Settings: []
+   *   },
+   *   policies: [
+   *     {
+   *       effect: 'allow',
+   *       actions: 'all',
+   *       constraint: {
+   *         and: [
+   *           {
+   *             equals: [
+   *               { doc: 'sys.type' },
+   *               'Entry'
+   *             ]
+   *           },
+   *           {
+   *             equals: [
+   *               { doc: 'sys.type' },
+   *               'Asset'
+   *             ]
+   *           }
+   *         ]
+   *       }
+   *     }
+   *   ]
+   * }))
+   * .then((role) => console.log(role))
+   * .catch(console.error)
+   */
+
+
+  function createRoleWithId(id, data) {
+    return http.put('roles/' + id, data).then(function (response) {
+      return wrapRole(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a Api Key
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @return {Promise<ApiKey.ApiKey>} Promise for a Api Key
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getApiKey('<apikey-id>'))
+   * .then((apikey) => console.log(apikey))
+   * .catch(console.error)
+   */
+
+
+  function getApiKey(id) {
+    return http.get('api_keys/' + id).then(function (response) {
+      return wrapApiKey(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Api Keys
+   * @memberof ContentfulSpaceAPI
+   * @return {Promise<ApiKey.ApiKeyCollection>} Promise for a collection of Api Keys
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getApiKeys())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+   */
+
+
+  function getApiKeys() {
+    return http.get('api_keys').then(function (response) {
+      return wrapApiKeyCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a preview Api Key
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @return {Promise<PreviewApiKey.PreviewApiKey>} Promise for a Preview Api Key
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getPreviewApiKey('<preview-apikey-id>'))
+   * .then((previewApikey) => console.log(previewApikey))
+   * .catch(console.error)
+   */
+
+
+  function getPreviewApiKey(id) {
+    return http.get('preview_api_keys/' + id).then(function (response) {
+      return wrapPreviewApiKey(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of preview Api Keys
+   * @memberof ContentfulSpaceAPI
+   * @return {Promise<PreviewApiKey.PreviewApiKeyCollection>} Promise for a collection of Preview Api Keys
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getPreviewApiKeys())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+   */
+
+
+  function getPreviewApiKeys() {
+    return http.get('preview_api_keys').then(function (response) {
+      return wrapPreviewApiKeyCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Api Key
+   * @memberof ContentfulSpaceAPI
+   * @see {ApiKey.ApiKey}
+   * @param {object} data - Object representation of the Api Key to be created
+   * @return {Promise<ApiKey.ApiKey>} Promise for the newly created Api Key
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createApiKey({
+   *   name: 'API Key name',
+   *   environments:[
+   *    {
+   *     sys: {
+   *      type: 'Link'
+   *      linkType: 'Environment',
+   *      id:'<environment_id>'
+   *     }
+   *    }
+   *   ]
+   *   }
+   * }))
+   * .then((apiKey) => console.log(apiKey))
+   * .catch(console.error)
+  */
+
+
+  function createApiKey(data) {
+    return http.post('api_keys', data).then(function (response) {
+      return wrapApiKey(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Api Key with a custom id
+   * @memberof ContentfulSpaceAPI
+   * @see {ApiKey.ApiKey}
+   * @param {string} id - Api Key ID
+   * @param {object} data - Object representation of the Api Key to be created
+   * @return {Promise<ApiKey.ApiKey>} Promise for the newly created Api Key
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createApiKeyWithId('<custom-id>', {
+   *   name: 'API Key name'
+   *   environments:[
+   *    {
+   *     sys: {
+   *      type: 'Link'
+   *      linkType: 'Environment',
+   *      id:'<environment_id>'
+   *     }
+   *    }
+   *   ]
+   *   }
+   * }))
+   * .then((apiKey) => console.log(apiKey))
+   * .catch(console.error)
+   */
+
+
+  function createApiKeyWithId(id, data) {
+    return http.put('api_keys/' + id, data).then(function (response) {
+      return wrapApiKey(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets an UI Extension
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @param  {string} id
+   * @return {Promise<UiExtension.UiExtension>} Promise for an UI Extension
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getUiExtension('<ui-extension-id>'))
+   * .then((uiExtension) => console.log(uiExtension))
+   * .catch(console.error)
+   */
+
+
+  function getUiExtension(id) {
+    raiseDeprecationWarning('getUiExtension');
+    return http.get('extensions/' + id).then(function (response) {
+      return wrapUiExtension(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of UI Extension
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @return {Promise<UiExtension.UiExtensionCollection>} Promise for a collection of UI Extensions
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getUiExtensions()
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+   */
+
+
+  function getUiExtensions() {
+    raiseDeprecationWarning('getUiExtensions');
+    return http.get('extensions').then(function (response) {
+      return wrapUiExtensionCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a UI Extension
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @see {UiExtension.UiExtension}
+   * @param {object} data - Object representation of the UI Extension to be created
+   * @return {Promise<UiExtension.UiExtension>} Promise for the newly created UI Extension
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createUiExtension({
+   *   extension: {
+   *     name: 'My awesome extension',
+   *     src: 'https://example.com/my',
+   *     fieldTypes: [
+   *       {
+   *         type: 'Symbol'
+   *       },
+   *       {
+   *         type: 'Text'
+   *       }
+   *     ],
+   *     sidebar: false
+   *   }
+   * }))
+   * .then((uiExtension) => console.log(uiExtension))
+   * .catch(console.error)
+   */
+
+
+  function createUiExtension(data) {
+    raiseDeprecationWarning('createUiExtension');
+    return http.post('extensions', data).then(function (response) {
+      return wrapUiExtension(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a UI Extension with a custom ID
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @see {UiExtension.UiExtension}
+   * @param  {string} id
+   * @param {object} data - Object representation of the UI Extension to be created
+   * @return {Promise<UiExtension.UiExtension>} Promise for the newly created UI Extension
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.createUiExtensionWithId('<extension_id>', {
+   *   extension: {
+   *     name: 'My awesome extension',
+   *     src: 'https://example.com/my',
+   *     fieldTypes: [
+   *       {
+   *         type: 'Symbol'
+   *       },
+   *       {
+   *         type: 'Text'
+   *       }
+   *     ],
+   *     sidebar: false
+   *   }
+   * }))
+   * .then((uiExtension) => console.log(uiExtension))
+   * .catch(console.error)
+   */
+
+
+  function createUiExtensionWithId(id, data) {
+    raiseDeprecationWarning('createUiExtensionWithId');
+    return http.put('extensions/' + id, data).then(function (response) {
+      return wrapUiExtension(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets all snapshots of an entry
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @func getEntrySnapshots
+   * @param {string} - entryId id of the entry
+   * @param {object} - query additional query paramaters
+   * @return Promise<Object>
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEntrySnapshots('<entry_id>'))
+   * .then((snapshots) => console.log(snapshots.items))
+   * .catch(console.error)
+   */
+
+
+  function getEntrySnapshots(entryId) {
+    var query = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    raiseDeprecationWarning('getEntrySnapshots');
+    return http.get('entries/' + entryId + '/snapshots', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapSnapshotCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets all snapshots of a contentType
+   * @deprecated since version 5.0
+   * @memberof ContentfulSpaceAPI
+   * @func getContentTypeSnapshots
+   * @param {string} - contentTypeId id of the content type
+   * @param {object} - query additional query paramaters
+   * @return Promise<Object>
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getContentTypeSnapshots('<contentTypeId>'))
+   * .then((snapshots) => console.log(snapshots.items))
+   * .catch(console.error)
+   */
+
+
+  function getContentTypeSnapshots(contentTypeId) {
+    var query = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    raiseDeprecationWarning('getContentTypeSnapshots');
+    return http.get('content_types/' + contentTypeId + '/snapshots', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapSnapshotCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /*
+   * @private
+   * sdk relies heavily on sys metadata
+   * so we cannot omit the sys property on sdk level
+   *
+   */
+
+
+  function normalizeSelect(query) {
+    if (query.select && !/sys/i.test(query.select)) {
+      query.select += ',sys';
+    }
+  }
+
+  return {
+    delete: deleteSpace,
+    update: updateSpace,
+    getEnvironment: getEnvironment,
+    getEnvironments: getEnvironments,
+    createEnvironment: createEnvironment,
+    createEnvironmentWithId: createEnvironmentWithId,
+    getContentType: getContentType,
+    getContentTypes: getContentTypes,
+    createContentType: createContentType,
+    createContentTypeWithId: createContentTypeWithId,
+    getEditorInterfaceForContentType: getEditorInterfaceForContentType,
+    getEntry: getEntry,
+    getEntries: getEntries,
+    createEntry: createEntry,
+    createEntryWithId: createEntryWithId,
+    getAsset: getAsset,
+    getAssets: getAssets,
+    createAsset: createAsset,
+    createAssetWithId: createAssetWithId,
+    createAssetFromFiles: createAssetFromFiles,
+    getUpload: getUpload,
+    createUpload: createUpload,
+    getLocale: getLocale,
+    getLocales: getLocales,
+    createLocale: createLocale,
+    getWebhook: getWebhook,
+    getWebhooks: getWebhooks,
+    createWebhook: createWebhook,
+    createWebhookWithId: createWebhookWithId,
+    getRole: getRole,
+    getRoles: getRoles,
+    createRole: createRole,
+    createRoleWithId: createRoleWithId,
+    getSpaceMembership: getSpaceMembership,
+    getSpaceMemberships: getSpaceMemberships,
+    createSpaceMembership: createSpaceMembership,
+    createSpaceMembershipWithId: createSpaceMembershipWithId,
+    getApiKey: getApiKey,
+    getApiKeys: getApiKeys,
+    getPreviewApiKeys: getPreviewApiKeys,
+    getPreviewApiKey: getPreviewApiKey,
+    createApiKey: createApiKey,
+    createApiKeyWithId: createApiKeyWithId,
+    getUiExtension: getUiExtension,
+    getUiExtensions: getUiExtensions,
+    createUiExtension: createUiExtension,
+    createUiExtensionWithId: createUiExtensionWithId,
+    getEntrySnapshots: getEntrySnapshots,
+    getContentTypeSnapshots: getContentTypeSnapshots
+  };
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","./error-handler":"../node_modules/contentful-management/dist/es-modules/error-handler.js","./entities":"../node_modules/contentful-management/dist/es-modules/entities/index.js"}],"../node_modules/contentful-management/dist/es-modules/entities/space.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapSpace = wrapSpace;
+exports.wrapSpaceCollection = wrapSpaceCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _createSpaceApi = _interopRequireDefault(require("../create-space-api"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * @memberof Space
+ * @typedef Space
+ * @prop {Object} sys - System metadata
+ * @prop {string} sys.id - Space id
+ * @prop {string} sys.type - Entity type
+ * @prop {string} name - Space name
+ * @prop {function(): Object} toPlainObject() - Returns this Space as a plain JS object
+ */
+
+/**
+ * @memberof Space
+ * @typedef SpaceCollection
+ * @prop {number} total
+ * @prop {number} skip
+ * @prop {number} limit
+ * @prop {Array<Space.Space>} items
+ * @prop {function(): Object} toPlainObject() - Returns this Space collection as a plain JS object
+ */
+
+/**
+ * This method creates the API for the given space with all the methods for
+ * reading and creating other entities. It also passes down a clone of the
+ * http client with a space id, so the base path for requests now has the
+ * space id already set.
+ * @private
+ * @param  {Object} http - HTTP client instance
+ * @param  {Object} data - API response for a Space
+ * @return {Space}
+ */
+function wrapSpace(http, data) {
+  var space = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  var _http$httpClientParam = http.httpClientParams,
+      hostUpload = _http$httpClientParam.hostUpload,
+      defaultHostnameUpload = _http$httpClientParam.defaultHostnameUpload;
+  var spaceScopedHttpClient = http.cloneWithNewParams({
+    space: space.sys.id
+  });
+  var spaceScopedUploadClient = http.cloneWithNewParams({
+    space: space.sys.id,
+    host: hostUpload || defaultHostnameUpload
+  });
+  var spaceApi = (0, _createSpaceApi.default)({
+    http: spaceScopedHttpClient,
+    httpUpload: spaceScopedUploadClient
+  });
+  var enhancedSpace = (0, _enhanceWithMethods.default)(space, spaceApi);
+  return (0, _contentfulSdkCore.freezeSys)(enhancedSpace);
+}
+/**
+ * This method wraps each space in a collection with the space API. See wrapSpace
+ * above for more details.
+ * @private
+ * @param  {Object} http - HTTP client instance
+ * @param  {Object} data - API response for a Space collection
+ * @return {SpaceCollection}
+ */
+
+
+function wrapSpaceCollection(http, data) {
+  var spaces = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  spaces.items = spaces.items.map(function (entity) {
+    return wrapSpace(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(spaces);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../create-space-api":"../node_modules/contentful-management/dist/es-modules/create-space-api.js"}],"../node_modules/contentful-management/dist/es-modules/create-environment-api.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = createEnvironmentApi;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _errorHandler = _interopRequireDefault(require("./error-handler"));
+
+var _entities = _interopRequireDefault(require("./entities"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var _extends = Object.assign || function (target) {
+  for (var i = 1; i < arguments.length; i++) {
+    var source = arguments[i];
+
+    for (var key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        target[key] = source[key];
+      }
+    }
+  }
+
+  return target;
+};
+
+function _defineProperty(obj, key, value) {
+  if (key in obj) {
+    Object.defineProperty(obj, key, {
+      value: value,
+      enumerable: true,
+      configurable: true,
+      writable: true
+    });
+  } else {
+    obj[key] = value;
+  }
+
+  return obj;
+}
+/**
+ * Contentful Environment API. Contains methods to access any operations at a space
+ * level, such as creating and reading entities contained in a space.
+ * @namespace ContentfulEnvironmentAPI
+ */
+
+
+/**
+ * @memberof ContentfulEnvironmentAPI
+ * @typedef {Object} ContentfulEnvironmentAPI
+ * @prop {function} delete
+ * @prop {function} update
+ * @prop {function} getContentType
+ * @prop {function} getContentTypes
+ * @prop {function} createContentType
+ * @prop {function} createContentTypeWithId
+ * @prop {function} getEntry
+ * @prop {function} getEntries
+ * @prop {function} createEntry
+ * @prop {function} createEntryWithId
+ * @prop {function} getAsset
+ * @prop {function} getAssets
+ * @prop {function} createAsset
+ * @prop {function} createAssetWithId
+ * @prop {function} getLocale
+ * @prop {function} getLocales
+ * @prop {function} createLocale
+ * @prop {function} getUiExtension
+ * @prop {function} getUiExtensions
+ * @prop {function} createUiExtension
+ * @prop {function} createUiExtensionWithId
+ * @prop {function} getEntrySnapshots
+ * @prop {function} getContentTypeSnapshots
+ */
+
+/**
+ * Creates API object with methods to access the Environment API
+ * @private
+ * @param {Object} params - API initialization params
+ * @prop {Object} http - HTTP client instance
+ * @prop {Object} entities - Object with wrapper methods for each kind of entity
+ * @return {ContentfulEnvironmentAPI}
+ */
+function createEnvironmentApi(_ref) {
+  var http = _ref.http,
+      httpUpload = _ref.httpUpload;
+  var wrapEnvironment = _entities.default.environment.wrapEnvironment;
+  var _entities$contentType = _entities.default.contentType,
+      wrapContentType = _entities$contentType.wrapContentType,
+      wrapContentTypeCollection = _entities$contentType.wrapContentTypeCollection;
+  var _entities$entry = _entities.default.entry,
+      wrapEntry = _entities$entry.wrapEntry,
+      wrapEntryCollection = _entities$entry.wrapEntryCollection;
+  var _entities$asset = _entities.default.asset,
+      wrapAsset = _entities$asset.wrapAsset,
+      wrapAssetCollection = _entities$asset.wrapAssetCollection;
+  var _entities$locale = _entities.default.locale,
+      wrapLocale = _entities$locale.wrapLocale,
+      wrapLocaleCollection = _entities$locale.wrapLocaleCollection;
+  var wrapSnapshotCollection = _entities.default.snapshot.wrapSnapshotCollection;
+  var wrapEditorInterface = _entities.default.editorInterface.wrapEditorInterface;
+  var wrapUpload = _entities.default.upload.wrapUpload;
+  var _entities$uiExtension = _entities.default.uiExtension,
+      wrapUiExtension = _entities$uiExtension.wrapUiExtension,
+      wrapUiExtensionCollection = _entities$uiExtension.wrapUiExtensionCollection;
+  /**
+   * Environment instances.
+   * @namespace Environment
+   */
+
+  /**
+   * Deletes the environment
+   * @memberof Environment
+   * @func delete
+   * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.delete())
+   * .then(() => console.log('Environment deleted.'))
+   * .catch(console.error)
+  */
+
+  function deleteEnvironment() {
+    return http.delete('').then(function (response) {}, _errorHandler.default);
+  }
+  /**
+   * Updates the environment
+   * @memberof Environment
+   * @func update
+   * @return {Promise<Environment.Environment>} Promise for the updated environment.
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => {
+   *   environment.name = 'New name'
+   *   return environment.update()
+   * })
+   * .then((environment) => console.log(`Environment ${environment.sys.id} renamed.`)
+   * .catch(console.error)
+  */
+
+
+  function updateEnvironment() {
+    var raw = this.toPlainObject();
+    var data = (0, _cloneDeep.default)(raw);
+    delete data.sys;
+    return http.put('', data, {
+      headers: {
+        'X-Contentful-Version': raw.sys.version
+      }
+    }).then(function (response) {
+      return wrapEnvironment(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a Content Type
+   * @memberof ContentfulEnvironmentAPI
+   * @param  {string} id
+   * @return {Promise<ContentType.ContentType>} Promise for a Content Type
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getContentType('<content_type_id>'))
+   * .then((contentType) => console.log(contentType))
+   * .catch(console.error)
+   */
+
+
+  function getContentType(id) {
+    return http.get('content_types/' + id).then(function (response) {
+      return wrapContentType(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets an EditorInterface for a ContentType
+   * @memberof ContentfulEnvironmentAPI
+   * @param  {string} contentTypeId
+   * @return {Promise<EditorInterface.EditorInterface>} Promise for an EditorInterface
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getEditorInterfaceForContentType('<content_type_id>'))
+   * .then((EditorInterface) => console.log(EditorInterface))
+   * .catch(console.error)
+   */
+
+
+  function getEditorInterfaceForContentType(contentTypeId) {
+    return http.get('content_types/' + contentTypeId + '/editor_interface').then(function (response) {
+      return wrapEditorInterface(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Content Types
+   * @memberof ContentfulEnvironmentAPI
+   * @param  {Object - Object with search parameters. Check the <a href="https://www.contentful.com/developers/docs/javascript/tutorials/using-js-cda-sdk/#retrieving-entries-with-search-parameters">JS SDK tutorial</a> and the <a href="https://www.contentful.com/developers/docs/references/content-delivery-api/#/reference/search-parameters">REST API reference</a> for more details.
+   * @return {Promise<ContentType.ContentTypeCollection>} Promise for a collection of Content Types
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getContentTypes())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+  */
+
+
+  function getContentTypes() {
+    var query = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    return http.get('content_types', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapContentTypeCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Content Type
+   * @memberof ContentfulEnvironmentAPI
+   * @see {ContentType}
+   * @param {object} data - Object representation of the Content Type to be created
+   * @return {Promise<ContentType.ContentType>} Promise for the newly created Content Type
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createContentType({
+   *   name: 'Blog Post',
+   *   fields: [
+   *     {
+   *       id: 'title',
+   *       name: 'Title',
+   *       required: true,
+   *       localized: false,
+   *       type: 'Text'
+   *     }
+   *   ]
+   * }))
+   * .then((contentType) => console.log(contentType))
+   * .catch(console.error)
+   */
+
+
+  function createContentType(data) {
+    return http.post('content_types', data).then(function (response) {
+      return wrapContentType(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Content Type with a custom id
+   * @memberof ContentfulEnvironmentAPI
+   * @see {ContentType.ContentType}
+   * @param {string} id - Content Type ID
+   * @param {object} data - Object representation of the Content Type to be created
+   * @return {Promise<ContentType.ContentType>} Promise for the newly created Content Type
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createContentTypeWithId('<custom-id>', {
+   *   name: 'Blog Post',
+   *   fields: [
+   *     {
+   *       id: 'title',
+   *       name: 'Title',
+   *       required: true,
+   *       localized: false,
+   *       type: 'Text'
+   *     }
+   *   ]
+   * }))
+   * .then((contentType) => console.log(contentType))
+   * .catch(console.error)
+   */
+
+
+  function createContentTypeWithId(id, data) {
+    return http.put('content_types/' + id, data).then(function (response) {
+      return wrapContentType(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets an Entry
+   * Warning: if you are using the select operator, when saving, any field that was not selected will be removed
+   * from your entry in the backend
+   * @memberof ContentfulEnvironmentAPI
+   * @param  {string} id
+   * @param  {Object=} query - Object with search parameters. In this method it's only useful for `locale`.
+   * @return {Promise<Entry.Entry>} Promise for an Entry
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getEntry('<entry-id>'))
+   * .then((entry) => console.log(entry))
+   * .catch(console.error)
+   */
+
+
+  function getEntry(id) {
+    var query = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    normalizeSelect(query);
+    return http.get('entries/' + id, (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapEntry(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Entries
+   * Warning: if you are using the select operator, when saving, any field that was not selected will be removed
+   * from your entry in the backend
+   * @memberof ContentfulEnvironmentAPI
+   * @param  {Object=} query - Object with search parameters. Check the <a href="https://www.contentful.com/developers/docs/javascript/tutorials/using-js-cda-sdk/#retrieving-entries-with-search-parameters">JS SDK tutorial</a> and the <a href="https://www.contentful.com/developers/docs/references/content-delivery-api/#/reference/search-parameters">REST API reference</a> for more details.
+   * @return {Promise<Entry.EntryCollection>} Promise for a collection of Entries
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getEntries({'content_type': 'foo'})) // you can add more queries as 'key': 'value'
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+   */
+
+
+  function getEntries() {
+    var query = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    normalizeSelect(query);
+    return http.get('entries', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapEntryCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Entry
+   * @memberof ContentfulEnvironmentAPI
+   * @see {Entry.Entry}
+   * @param {string} contentTypeId - The Content Type which this Entry is based on
+   * @param {object} data - Object representation of the Entry to be created
+   * @return {Promise<Entry.Entry>} Promise for the newly created Entry
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createEntry('<content_type_id>', {
+   *   fields: {
+   *     title: {
+   *       'en-US': 'Entry title'
+   *     }
+   *   }
+   * }))
+   * .then((entry) => console.log(entry))
+   * .catch(console.error)
+   */
+
+
+  function createEntry(contentTypeId, data) {
+    return http.post('entries', data, {
+      headers: {
+        'X-Contentful-Content-Type': contentTypeId
+      }
+    }).then(function (response) {
+      return wrapEntry(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Entry with a custom id
+   * @memberof ContentfulEnvironmentAPI
+   * @see {Entry.Entry}
+   * @param {string} contentTypeId - The Content Type which this Entry is based on
+   * @param {string} id - Entry ID
+   * @param {object} data - Object representation of the Entry to be created
+   * @return {Promise<Entry.Entry>} Promise for the newly created Entry
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * // Create entry
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createEntryWithId('<content_type_id>', '<entry_id>', {
+   *   fields: {
+   *     title: {
+   *       'en-US': 'Entry title'
+   *     }
+   *   }
+   * }))
+   * .then((entry) => console.log(entry))
+   * .catch(console.error)
+   */
+
+
+  function createEntryWithId(contentTypeId, id, data) {
+    return http.put('entries/' + id, data, {
+      headers: {
+        'X-Contentful-Content-Type': contentTypeId
+      }
+    }).then(function (response) {
+      return wrapEntry(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets an Asset
+   * Warning: if you are using the select operator, when saving, any field that was not selected will be removed
+   * from your entry in the backend
+   * @memberof ContentfulEnvironmentAPI
+   * @param  {string} id
+   * @param  {Object=} query - Object with search parameters. In this method it's only useful for `locale`.
+   * @return {Promise<Asset.Asset>} Promise for an Asset
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getAsset('<asset_id>'))
+   * .then((asset) => console.log(asset))
+   * .catch(console.error)
+  */
+
+
+  function getAsset(id) {
+    var query = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    normalizeSelect(query);
+    return http.get('assets/' + id, (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapAsset(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Assets
+   * Warning: if you are using the select operator, when saving, any field that was not selected will be removed
+   * from your entry in the backend
+   * @memberof ContentfulEnvironmentAPI
+   * @param  {Object=} query - Object with search parameters. Check the <a href="https://www.contentful.com/developers/docs/javascript/tutorials/using-js-cda-sdk/#retrieving-entries-with-search-parameters">JS SDK tutorial</a> and the <a href="https://www.contentful.com/developers/docs/references/content-delivery-api/#/reference/search-parameters">REST API reference</a> for more details.
+   * @return {Promise<Asset.AssetCollection>} Promise for a collection of Assets
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getAssets())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+  */
+
+
+  function getAssets() {
+    var query = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    normalizeSelect(query);
+    return http.get('assets', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapAssetCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Asset. After creation, call asset.processForLocale or asset.processForAllLocales to start asset processing.
+   * @memberof ContentfulEnvironmentAPI
+   * @see {Asset.Asset}
+   * @param {object} data - Object representation of the Asset to be created. Note that the field object should have an upload property on asset creation, which will be removed and replaced with an url property when processing is finished.
+   * @return {Promise<Asset.Asset>} Promise for the newly created Asset
+   * @example
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * // Create asset
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createAsset({
+   *   fields: {
+   *     title: {
+   *       'en-US': 'Playsam Streamliner'
+   *    },
+   *    file: {
+   *       'en-US': {
+   *         contentType: 'image/jpeg',
+   *        fileName: 'example.jpeg',
+   *        upload: 'https://example.com/example.jpg'
+   *      }
+   *    }
+   *   }
+   * }))
+   * .then((asset) => asset.process())
+   * .then((asset) => console.log(asset))
+   * .catch(console.error)
+   */
+
+
+  function createAsset(data) {
+    return http.post('assets', data).then(function (response) {
+      return wrapAsset(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Asset with a custom id. After creation, call asset.processForLocale or asset.processForAllLocales to start asset processing.
+   * @memberof ContentfulEnvironmentAPI
+   * @see {Asset.Asset}
+   * @param {string} id - Asset ID
+   * @param {object} data - Object representation of the Asset to be created. Note that the field object should have an upload property on asset creation, which will be removed and replaced with an url property when processing is finished.
+   * @return {Promise<Asset.Asset>} Promise for the newly created Asset
+   * @example
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * // Create asset
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createAssetWithId('<asset_id>', {
+   *   title: {
+   *     'en-US': 'Playsam Streamliner'
+   *   },
+   *   file: {
+   *     'en-US': {
+   *       contentType: 'image/jpeg',
+   *       fileName: 'example.jpeg',
+   *       upload: 'https://example.com/example.jpg'
+   *     }
+   *   }
+   * }))
+   * .then((asset) => asset.process())
+   * .then((asset) => console.log(asset))
+   * .catch(console.error)
+   */
+
+
+  function createAssetWithId(id, data) {
+    return http.put('assets/' + id, data).then(function (response) {
+      return wrapAsset(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Asset based on files. After creation, call asset.processForLocale or asset.processForAllLocales to start asset processing.
+   * @memberof ContentfulEnvironmentAPI
+   * @see {Asset.Asset}
+   * @param {object} data - Object representation of the Asset to be created. Note that the field object should have an uploadFrom property on asset creation, which will be removed and replaced with an url property when processing is finished.
+   * @param {object} data.fields.file.[LOCALE].file - Can be a string, an ArrayBuffer or a Stream.
+   * @return {Promise<Asset.Asset>} Promise for the newly created Asset
+   * @example
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createAssetFromFiles({
+   *   fields: {
+   *     file: {
+   *       'en-US': {
+   *          contentType: 'image/jpeg',
+   *          fileName: 'filename_english.jpg',
+   *          file: createReadStream('path/to/filename_english.jpg')
+   *       },
+   *       'de-DE': {
+   *          contentType: 'image/svg+xml',
+   *          fileName: 'filename_german.svg',
+   *          file: '<svg><path fill="red" d="M50 50h150v50H50z"/></svg>'
+   *       }
+   *     }
+   *   }
+   * }))
+   * .then((asset) => console.log(asset))
+   * .catch(console.error)
+   */
+
+
+  function createAssetFromFiles(data) {
+    var file = data.fields.file;
+    return Promise.all(Object.keys(file).map(function (locale) {
+      var _file$locale = file[locale],
+          contentType = _file$locale.contentType,
+          fileName = _file$locale.fileName;
+      return createUpload(file[locale]).then(function (upload) {
+        return _defineProperty({}, locale, {
+          contentType: contentType,
+          fileName: fileName,
+          uploadFrom: {
+            sys: {
+              type: 'Link',
+              linkType: 'Upload',
+              id: upload.sys.id
+            }
+          }
+        });
+      });
+    })).then(function (uploads) {
+      data.fields.file = uploads.reduce(function (fieldsData, upload) {
+        return _extends({}, fieldsData, upload);
+      }, {});
+      return createAsset(data);
+    }).catch(_errorHandler.default);
+  }
+  /**
+   * Creates a Upload.
+   * @memberof ContentfulEnvironmentAPI
+   * @param {object} data - Object with file information.
+   * @param {object} data.file - Actual file content. Can be a string, an ArrayBuffer or a Stream.
+   * @return {Promise<Upload>} Upload object containing information about the uploaded file.
+   * @example
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   * const uploadStream = createReadStream('path/to/filename_english.jpg')
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createUpload({file: uploadStream, 'image/png'})
+   * .then((upload) => console.log(upload))
+   * .catch(console.error)
+   */
+
+
+  function createUpload(data) {
+    var file = data.file;
+
+    if (!file) {
+      return Promise.reject(new Error('Unable to locate a file to upload.'));
+    }
+
+    return httpUpload.post('uploads', file, {
+      headers: {
+        'Content-Type': 'application/octet-stream'
+      }
+    }).then(function (uploadResponse) {
+      return wrapUpload(httpUpload, uploadResponse.data);
+    }).catch(_errorHandler.default);
+  }
+  /**
+   * Gets an Upload
+   * @memberof ContentfulEnvironmentAPI
+   * @param  {string} id
+   * @return {Promise<Upload>} Promise for an Upload
+   * @example
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   * const uploadStream = createReadStream('path/to/filename_english.jpg')
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getUpload('<upload-id>')
+   * .then((upload) => console.log(upload))
+   * .catch(console.error)
+   */
+
+
+  function getUpload(id) {
+    return httpUpload.get('uploads/' + id).then(function (response) {
+      return wrapUpload(http, response.data);
+    }).catch(_errorHandler.default);
+  }
+  /**
+   * Gets a Locale
+   * @memberof ContentfulEnvironmentAPI
+   * @param  {string} id
+   * @return {Promise<Locale.Locale>} Promise for an Locale
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getLocale('<locale_id>'))
+   * .then((locale) => console.log(locale))
+   * .catch(console.error)
+  */
+
+
+  function getLocale(id) {
+    return http.get('locales/' + id).then(function (response) {
+      return wrapLocale(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Locales
+   * @memberof ContentfulEnvironmentAPI
+   * @return {Promise<Locale.LocaleCollection>} Promise for a collection of Locales
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getLocales())
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+  */
+
+
+  function getLocales() {
+    return http.get('locales').then(function (response) {
+      return wrapLocaleCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a Locale
+   * @memberof ContentfulEnvironmentAPI
+   * @see {Locale.Locale}
+   * @param {object} data - Object representation of the Locale to be created
+   * @return {Promise<Locale.Locale>} Promise for the newly created Locale
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * // Create locale
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createLocale({
+   *   name: 'German (Austria)',
+   *   code: 'de-AT',
+   *   fallbackCode: 'de-DE',
+   *   optional: true
+   * }))
+   * .then((locale) => console.log(locale))
+   * .catch(console.error)
+   */
+
+
+  function createLocale(data) {
+    return http.post('locales', data).then(function (response) {
+      return wrapLocale(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets an UI Extension
+   * @memberof ContentfulEnvironmentAPI
+   * @param  {string} id
+   * @return {Promise<UiExtension.UiExtension>} Promise for an UI Extension
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getUiExtension('<ui-extension-id>'))
+   * .then((uiExtension) => console.log(uiExtension))
+   * .catch(console.error)
+   */
+
+
+  function getUiExtension(id) {
+    return http.get('extensions/' + id).then(function (response) {
+      return wrapUiExtension(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of UI Extension
+   * @memberof ContentfulEnvironmentAPI
+   * @return {Promise<UiExtension.UiExtensionCollection>} Promise for a collection of UI Extensions
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getUiExtensions()
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+   */
+
+
+  function getUiExtensions() {
+    return http.get('extensions').then(function (response) {
+      return wrapUiExtensionCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a UI Extension
+   * @memberof ContentfulEnvironmentAPI
+   * @see {UiExtension.UiExtension}
+   * @param {object} data - Object representation of the UI Extension to be created
+   * @return {Promise<UiExtension.UiExtension>} Promise for the newly created UI Extension
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createUiExtension({
+   *   extension: {
+   *     name: 'My awesome extension',
+   *     src: 'https://example.com/my',
+   *     fieldTypes: [
+   *       {
+   *         type: 'Symbol'
+   *       },
+   *       {
+   *         type: 'Text'
+   *       }
+   *     ],
+   *     sidebar: false
+   *   }
+   * }))
+   * .then((uiExtension) => console.log(uiExtension))
+   * .catch(console.error)
+   */
+
+
+  function createUiExtension(data) {
+    return http.post('extensions', data).then(function (response) {
+      return wrapUiExtension(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a UI Extension with a custom ID
+   * @memberof ContentfulEnvironmentAPI
+   * @see {UiExtension.UiExtension}
+   * @param  {string} id
+   * @param {object} data - Object representation of the UI Extension to be created
+   * @return {Promise<UiExtension.UiExtension>} Promise for the newly created UI Extension
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.createUiExtensionWithId('<extension_id>', {
+   *   extension: {
+   *     name: 'My awesome extension',
+   *     src: 'https://example.com/my',
+   *     fieldTypes: [
+   *       {
+   *         type: 'Symbol'
+   *       },
+   *       {
+   *         type: 'Text'
+   *       }
+   *     ],
+   *     sidebar: false
+   *   }
+   * }))
+   * .then((uiExtension) => console.log(uiExtension))
+   * .catch(console.error)
+   */
+
+
+  function createUiExtensionWithId(id, data) {
+    return http.put('extensions/' + id, data).then(function (response) {
+      return wrapUiExtension(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets all snapshots of an entry
+   * @memberof ContentfulEnvironmentAPI
+   * @func getEntrySnapshots
+   * @param {string} entryId - entryId id of the entry
+   * @param {object} query - query additional query paramaters
+   * @param {number} query.skip - optional, number of items to skip
+   * @param {number} query.limit - optional, limit total number of snapshots returned
+   * @param
+   * @return Promise<Object>
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getEntrySnapshots('<entry_id>'))
+   * .then((snapshots) => console.log(snapshots.items))
+   * .catch(console.error)
+   */
+
+
+  function getEntrySnapshots(entryId) {
+    var query = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    return http.get('entries/' + entryId + '/snapshots', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapSnapshotCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets all snapshots of a contentType
+   * @memberof ContentfulEnvironmentAPI
+   * @func getContentTypeSnapshots
+   * @param {string} contentTypeId - contentTypeId id of the content type
+   * @param {object} query - query additional query paramaters
+   * @param {number} query.skip - optional, number of items to skip
+   * @param {number} query.limit - optional, limit total number of snapshots returned
+   * @return Promise<Object>
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => space.getEnvironment('<environment-id>'))
+   * .then((environment) => environment.getContentTypeSnapshots('<contentTypeId>'))
+   * .then((snapshots) => console.log(snapshots.items))
+   * .catch(console.error)
+   */
+
+
+  function getContentTypeSnapshots(contentTypeId) {
+    var query = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    return http.get('content_types/' + contentTypeId + '/snapshots', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapSnapshotCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /*
+   * @private
+   * sdk relies heavily on sys metadata
+   * so we cannot omit the sys property on sdk level
+   *
+   */
+
+
+  function normalizeSelect(query) {
+    if (query.select && !/sys/i.test(query.select)) {
+      query.select += ',sys';
+    }
+  }
+
+  return {
+    delete: deleteEnvironment,
+    update: updateEnvironment,
+    getContentType: getContentType,
+    getContentTypes: getContentTypes,
+    createContentType: createContentType,
+    createContentTypeWithId: createContentTypeWithId,
+    getEditorInterfaceForContentType: getEditorInterfaceForContentType,
+    getEntry: getEntry,
+    getEntries: getEntries,
+    createEntry: createEntry,
+    createEntryWithId: createEntryWithId,
+    getAsset: getAsset,
+    getAssets: getAssets,
+    createAsset: createAsset,
+    createAssetWithId: createAssetWithId,
+    createAssetFromFiles: createAssetFromFiles,
+    getUpload: getUpload,
+    createUpload: createUpload,
+    getLocale: getLocale,
+    getLocales: getLocales,
+    createLocale: createLocale,
+    getUiExtension: getUiExtension,
+    getUiExtensions: getUiExtensions,
+    createUiExtension: createUiExtension,
+    createUiExtensionWithId: createUiExtensionWithId,
+    getEntrySnapshots: getEntrySnapshots,
+    getContentTypeSnapshots: getContentTypeSnapshots
+  };
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","./error-handler":"../node_modules/contentful-management/dist/es-modules/error-handler.js","./entities":"../node_modules/contentful-management/dist/es-modules/entities/index.js"}],"../node_modules/contentful-management/dist/es-modules/entities/environment.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapEnvironment = wrapEnvironment;
+exports.wrapEnvironmentCollection = wrapEnvironmentCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _createEnvironmentApi = _interopRequireDefault(require("../create-environment-api"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * @memberof Environment
+ * @typedef Environment
+ * @prop {Object} sys - System metadata
+ * @prop {string} sys.id - Environment id
+ * @prop {string} sys.type - Entity type
+ * @prop {string} name - Environment name
+ * @prop {function(): Object} toPlainObject() - Returns this Environment as a plain JS object
+ */
+
+/**
+ * @memberof Environment
+ * @typedef SpaceCollection
+ * @prop {number} total
+ * @prop {number} skip
+ * @prop {number} limit
+ * @prop {Array<Environment.Environment>} items
+ * @prop {function(): Object} toPlainObject() - Returns this Environment collection as a plain JS object
+ */
+
+/**
+ * This method creates the API for the given environment with all the methods for
+ * reading and creating other entities. It also passes down a clone of the
+ * http client with a environment id, so the base path for requests now has the
+ * environment id already set.
+ * @private
+ * @param  {Object} http - HTTP client instance
+ * @param  {Object} data - API response for a Environment
+ * @return {Environment}
+ */
+function wrapEnvironment(http, data) {
+  var environment = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  var _http$httpClientParam = http.httpClientParams,
+      hostUpload = _http$httpClientParam.hostUpload,
+      defaultHostnameUpload = _http$httpClientParam.defaultHostnameUpload;
+  var environmentScopedHttpClient = http.cloneWithNewParams({
+    baseURL: http.defaults.baseURL + 'environments/' + environment.sys.id
+  });
+  var environmentScopedUploadClient = http.cloneWithNewParams({
+    space: environment.sys.space.sys.id,
+    host: hostUpload || defaultHostnameUpload
+  });
+  var environmentApi = (0, _createEnvironmentApi.default)({
+    http: environmentScopedHttpClient,
+    httpUpload: environmentScopedUploadClient
+  });
+  var enhancedEnvironment = (0, _enhanceWithMethods.default)(environment, environmentApi);
+  return (0, _contentfulSdkCore.freezeSys)(enhancedEnvironment);
+}
+/**
+ * This method wraps each environment in a collection with the environment API. See wrapEnvironment
+ * above for more details.
+ * @private
+ * @param  {Object} http - HTTP client instance
+ * @param  {Object} data - API response for a Environment collection
+ * @return {SpaceCollection}
+ */
+
+
+function wrapEnvironmentCollection(http, data) {
+  var environments = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  environments.items = environments.items.map(function (entity) {
+    return wrapEnvironment(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(environments);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../create-environment-api":"../node_modules/contentful-management/dist/es-modules/create-environment-api.js"}],"../node_modules/contentful-management/dist/es-modules/instance-actions.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createUpdateEntity = createUpdateEntity;
+exports.createDeleteEntity = createDeleteEntity;
+exports.createPublishEntity = createPublishEntity;
+exports.createUnpublishEntity = createUnpublishEntity;
+exports.createArchiveEntity = createArchiveEntity;
+exports.createUnarchiveEntity = createUnarchiveEntity;
+exports.createPublishedChecker = createPublishedChecker;
+exports.createUpdatedChecker = createUpdatedChecker;
+exports.createDraftChecker = createDraftChecker;
+exports.createArchivedChecker = createArchivedChecker;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _errorHandler = _interopRequireDefault(require("./error-handler"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * @private
+ */
+function createUpdateEntity(_ref) {
+  var http = _ref.http,
+      entityPath = _ref.entityPath,
+      wrapperMethod = _ref.wrapperMethod;
+  return function () {
+    var raw = this.toPlainObject();
+    var data = (0, _cloneDeep.default)(raw);
+    delete data.sys;
+    return http.put(entityPath + '/' + this.sys.id, data, {
+      headers: {
+        'X-Contentful-Version': this.sys.version
+      }
+    }).then(function (response) {
+      return wrapperMethod(http, response.data);
+    }, _errorHandler.default);
+  };
+}
+/**
+ * @private
+ */
+
+
+function createDeleteEntity(_ref2) {
+  var http = _ref2.http,
+      entityPath = _ref2.entityPath;
+  return function () {
+    return http.delete(entityPath + '/' + this.sys.id).then(function (response) {}, _errorHandler.default);
+  };
+}
+/**
+ * @private
+ */
+
+
+function createPublishEntity(_ref3) {
+  var http = _ref3.http,
+      entityPath = _ref3.entityPath,
+      wrapperMethod = _ref3.wrapperMethod;
+  return function () {
+    return http.put(entityPath + '/' + this.sys.id + '/published', null, {
+      headers: {
+        'X-Contentful-Version': this.sys.version
+      }
+    }).then(function (response) {
+      return wrapperMethod(http, response.data);
+    }, _errorHandler.default);
+  };
+}
+/**
+ * @private
+ */
+
+
+function createUnpublishEntity(_ref4) {
+  var http = _ref4.http,
+      entityPath = _ref4.entityPath,
+      wrapperMethod = _ref4.wrapperMethod;
+  return function () {
+    return http.delete(entityPath + '/' + this.sys.id + '/published').then(function (response) {
+      return wrapperMethod(http, response.data);
+    }, _errorHandler.default);
+  };
+}
+/**
+ * @private
+ */
+
+
+function createArchiveEntity(_ref5) {
+  var http = _ref5.http,
+      entityPath = _ref5.entityPath,
+      wrapperMethod = _ref5.wrapperMethod;
+  return function () {
+    return http.put(entityPath + '/' + this.sys.id + '/archived').then(function (response) {
+      return wrapperMethod(http, response.data);
+    }, _errorHandler.default);
+  };
+}
+/**
+ * @private
+ */
+
+
+function createUnarchiveEntity(_ref6) {
+  var http = _ref6.http,
+      entityPath = _ref6.entityPath,
+      wrapperMethod = _ref6.wrapperMethod;
+  return function () {
+    return http.delete(entityPath + '/' + this.sys.id + '/archived').then(function (response) {
+      return wrapperMethod(http, response.data);
+    }, _errorHandler.default);
+  };
+}
+/**
+ * @private
+ */
+
+
+function createPublishedChecker() {
+  return function () {
+    return !!this.sys.publishedVersion;
+  };
+}
+/**
+ * @private
+ */
+
+
+function createUpdatedChecker() {
+  return function () {
+    // The act of publishing an entity increases its version by 1, so any entry which has
+    // 2 versions higher or more than the publishedVersion has unpublished changes.
+    return !!(this.sys.publishedVersion && this.sys.version > this.sys.publishedVersion + 1);
+  };
+}
+/**
+ * @private
+ */
+
+
+function createDraftChecker() {
+  return function () {
+    return !this.sys.publishedVersion;
+  };
+}
+/**
+ * @private
+ */
+
+
+function createArchivedChecker() {
+  return function () {
+    return !!this.sys.archivedVersion;
+  };
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","./error-handler":"../node_modules/contentful-management/dist/es-modules/error-handler.js"}],"../node_modules/contentful-management/dist/es-modules/entities/snapshot.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapSnapshot = wrapSnapshot;
+exports.wrapSnapshotCollection = wrapSnapshotCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Snapshot instances
+ * @namespace Snapshot
+ */
+
+/**
+ * @memberof Snapshot
+ * @typedef Snapshot
+ * @prop {Meta.Sys} sys - System metadata
+ * @prop {Object<EntryFields.Field>} fields - Object with content for each field
+ * @prop {function(): Object} toPlainObject() - Returns this Snapshot as a plain JS object
+ */
+function createSnapshotApi(http) {
+  return {
+    /* In case the snapshot object evolve later */
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw snapshot data
+ * @return {Snapshot} Wrapped snapshot data
+ */
+
+
+function wrapSnapshot(http, data) {
+  var snapshot = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(snapshot, createSnapshotApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(snapshot);
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw snapshot collection data
+ * @return {ApiKeyCollection} Wrapped snapshot collection data
+ */
+
+
+function wrapSnapshotCollection(http, data) {
+  var snapshots = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  snapshots.items = snapshots.items.map(function (entity) {
+    return wrapSnapshot(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(snapshots);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js"}],"../node_modules/contentful-management/dist/es-modules/entities/entry.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapEntry = wrapEntry;
+exports.wrapEntryCollection = wrapEntryCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _instanceActions = require("../instance-actions");
+
+var _errorHandler = _interopRequireDefault(require("../error-handler"));
+
+var _snapshot = require("./snapshot");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Entry instances
+ * @namespace Entry
+ */
+
+/**
+ * Types of fields found in an Entry
+ * @namespace EntryFields
+ */
+
+/**
+ * @memberof EntryFields
+ * @typedef Symbol
+ * @type string
+ */
+
+/**
+ * @memberof EntryFields
+ * @typedef Text
+ * @type string
+ */
+
+/**
+ * @memberof EntryFields
+ * @typedef Integer
+ * @type number
+ */
+
+/**
+ * @memberof EntryFields
+ * @typedef Number
+ * @type number
+ */
+
+/**
+ * @memberof EntryFields
+ * @typedef Date
+ * @type string
+ */
+
+/**
+ * @memberof EntryFields
+ * @typedef Boolean
+ * @type boolean
+ */
+
+/**
+ * @memberof EntryFields
+ * @typedef Location
+ * @prop {string} lat - latitude
+ * @prop {string} lon - longitude
+ */
+
+/**
+ * A Field in an Entry can have one of the following types that can be defined in Contentful. See <a href="https://www.contentful.com/developers/docs/references/field-type/">Field Types</a> for more details.
+ * @memberof EntryFields
+ * @typedef Field
+ * @type EntryFields.Symbol | EntryFields.Text | EntryFields.Integer | EntryFields.Number | EntryFields.Date | EntryFields.Boolean | EntryFields.Location | Meta.Link | Array<EntryFields.Symbol|Meta.Link> | Object
+ */
+
+/**
+ * @memberof Entry
+ * @typedef Entry
+ * @prop {Meta.Sys} sys - Standard system metadata with additional entry specific properties
+ * @prop {Meta.Link} sys.contentType - Content Type used by this Entry
+ * @prop {string=} sys.locale - If present, indicates the locale which this entry uses
+ * @prop {Object<EntryFields.Field>} fields - Object with content for each field
+ * @prop {function(): Object} toPlainObject() - Returns this Entry as a plain JS object
+ */
+function createEntryApi(http) {
+  return {
+    /**
+     * Sends an update to the server with any changes made to the object's properties
+     * @memberof Entry
+     * @func update
+     * @return {Promise<Entry>} Object returned from the server with updated changes.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getEntry('<entry_id>'))
+     * .then((entry) => {
+     *   entry.fields.title['en-US'] = 'New entry title'
+     *   return entry.update()
+     * })
+     * .then((entry) => console.log(`Entry ${entry.sys.id} updated.`))
+     * .catch(console.error)
+    */
+    update: (0, _instanceActions.createUpdateEntity)({
+      http: http,
+      entityPath: 'entries',
+      wrapperMethod: wrapEntry
+    }),
+
+    /**
+     * Deletes this object on the server.
+     * @memberof Entry
+     * @func delete
+     * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getEntry('<entry_id>'))
+     * .then((entry) => entry.delete())
+     * .then(() => console.log(`Entry deleted.`))
+     * .catch(console.error)
+     */
+    delete: (0, _instanceActions.createDeleteEntity)({
+      http: http,
+      entityPath: 'entries'
+    }),
+
+    /**
+     * Publishes the object
+     * @memberof Entry
+     * @func publish
+     * @return {Promise<Entry>} Object returned from the server with updated metadata.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getEntry('<entry_id>'))
+     * .then((entry) => entry.publish())
+     * .then((entry) => console.log(`Entry ${entry.sys.id} published.`))
+     * .catch(console.error)
+     */
+    publish: (0, _instanceActions.createPublishEntity)({
+      http: http,
+      entityPath: 'entries',
+      wrapperMethod: wrapEntry
+    }),
+
+    /**
+     * Unpublishes the object
+     * @memberof Entry
+     * @func unpublish
+     * @return {Promise<Entry>} Object returned from the server with updated metadata.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getEntry('<entry_id>'))
+     * .then((entry) => entry.unpublish())
+     * .then((entry) => console.log(`Entry ${entry.sys.id} unpublished.`))
+     * .catch(console.error)
+     */
+    unpublish: (0, _instanceActions.createUnpublishEntity)({
+      http: http,
+      entityPath: 'entries',
+      wrapperMethod: wrapEntry
+    }),
+
+    /**
+     * Archives the object
+     * @memberof Entry
+     * @func archive
+     * @return {Promise<Entry>} Object returned from the server with updated metadata.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getEntry('<entry_id>'))
+     * .then((entry) => entry.archive())
+     * .then((entry) => console.log(`Entry ${entry.sys.id} archived.`))
+     * .catch(console.error)
+     */
+    archive: (0, _instanceActions.createArchiveEntity)({
+      http: http,
+      entityPath: 'entries',
+      wrapperMethod: wrapEntry
+    }),
+
+    /**
+     * Unarchives the object
+     * @memberof Entry
+     * @func unarchive
+     * @return {Promise<Entry>} Object returned from the server with updated metadata.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getEntry('<entry_id>'))
+     * .then((entry) => entry.unarchive())
+     * .then((entry) => console.log(`Entry ${entry.sys.id} unarchived.`))
+     * .catch(console.error)
+     */
+    unarchive: (0, _instanceActions.createUnarchiveEntity)({
+      http: http,
+      entityPath: 'entries',
+      wrapperMethod: wrapEntry
+    }),
+
+    /**
+     * Gets all snapshots of an entry
+     * @memberof Entry
+     * @func getSnapshots
+     * @return Promise<Snapshot>
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getEntry('<entry_id>'))
+     * .then((entry) => entry.getSnapshots())
+     * .then((snapshots) => console.log(snapshots.items))
+     * .catch(console.error)
+     */
+    getSnapshots: function getSnapshots() {
+      var query = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+      return http.get('entries/' + this.sys.id + '/snapshots', (0, _contentfulSdkCore.createRequestConfig)({
+        query: query
+      })).then(function (response) {
+        return (0, _snapshot.wrapSnapshotCollection)(http, response.data);
+      }, _errorHandler.default);
+    },
+
+    /**
+     * Gets a snapshot of an entry
+     * @memberof Entry
+     * @func getSnapshot
+     * @param {string} snapshotId - Id of the snapshot
+     * @return Promise<Snapshot>
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getEntry('<entry_id>'))
+     * .then((entry) => entry.getSnapshot('<snapshot_id>'))
+     * .then((snapshot) => console.log(snapshot))
+     * .catch(console.error)
+     */
+    getSnapshot: function getSnapshot(snapshotId) {
+      return http.get('entries/' + this.sys.id + '/snapshots/' + snapshotId).then(function (response) {
+        return (0, _snapshot.wrapSnapshot)(http, response.data);
+      }, _errorHandler.default);
+    },
+
+    /**
+     * Checks if the entry is published. A published entry might have unpublished changes (@see {Entry.isUpdated})
+     * @memberof Entry
+     * @func isPublished
+     * @return {boolean}
+     */
+    isPublished: (0, _instanceActions.createPublishedChecker)(),
+
+    /**
+     * Checks if the entry is updated. This means the entry was previously published but has unpublished changes.
+     * @memberof Entry
+     * @func isUpdated
+     * @return {boolean}
+     */
+    isUpdated: (0, _instanceActions.createUpdatedChecker)(),
+
+    /**
+     * Checks if the entry is in draft mode. This means it is not published.
+     * @memberof Entry
+     * @func isDraft
+     * @return {boolean}
+     */
+    isDraft: (0, _instanceActions.createDraftChecker)(),
+
+    /**
+     * Checks if entry is archived. This means it's not exposed to the Delivery/Preview APIs.
+     * @memberof Entry
+     * @func isArchived
+     * @return {boolean}
+     */
+    isArchived: (0, _instanceActions.createArchivedChecker)()
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw entry data
+ * @return {Entry} Wrapped entry data
+ */
+
+
+function wrapEntry(http, data) {
+  var entry = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(entry, createEntryApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(entry);
+}
+/**
+ * Data is also mixed in with link getters if links exist and includes were requested
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw entry collection data
+ * @return {EntryCollection} Wrapped entry collection data
+ */
+
+
+function wrapEntryCollection(http, data, resolveLinks) {
+  var entries = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  entries.items = entries.items.map(function (entity) {
+    return wrapEntry(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(entries);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../instance-actions":"../node_modules/contentful-management/dist/es-modules/instance-actions.js","../error-handler":"../node_modules/contentful-management/dist/es-modules/error-handler.js","./snapshot":"../node_modules/contentful-management/dist/es-modules/entities/snapshot.js"}],"../node_modules/contentful-management/dist/es-modules/entities/asset.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapAsset = wrapAsset;
+exports.wrapAssetCollection = wrapAssetCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _errorHandler = _interopRequireDefault(require("../error-handler"));
+
+var _instanceActions = require("../instance-actions");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Asset instances
+ * @namespace Asset
+ */
+var ASSET_PROCESSING_CHECK_WAIT = 2000;
+var ASSET_PROCESSING_CHECK_RETRIES = 10;
+/**
+ * @memberof Asset
+ * @typedef Asset
+ * @prop {Meta.Sys} sys - Standard system metadata with additional asset specific properties
+ * @prop {string=} sys.locale - If present, indicates the locale which this asset uses
+ * @prop {Object} fields - Object with content for each field
+ * @prop {string} fields.title - Title for this asset
+ * @prop {string} fields.description - Description for this asset
+ * @prop {Object} fields.file - File object for this asset
+ * @prop {Object} fields.file.fileName - Name for the file
+ * @prop {string} fields.file.contentType - Mime type for the file
+ * @prop {string=} fields.file.upload - Url where the file is available to be downloaded from, into the Contentful asset system. After the asset is processed this field is gone.
+ * @prop {string=} fields.file.url - Url where the file is available at the Contentful media asset system. This field won't be available until the asset is processed.
+ * @prop {Object} fields.file.details - Details for the file, depending on file type (example: image size in bytes, etc)
+ * @prop {function(): Object} toPlainObject() - Returns this Asset as a plain JS object
+ */
+
+function createAssetApi(http) {
+  function checkIfAssetHasUrl(_ref) {
+    var resolve = _ref.resolve,
+        reject = _ref.reject,
+        id = _ref.id,
+        locale = _ref.locale,
+        _ref$processingCheckW = _ref.processingCheckWait,
+        processingCheckWait = _ref$processingCheckW === undefined ? ASSET_PROCESSING_CHECK_WAIT : _ref$processingCheckW,
+        _ref$processingCheckR = _ref.processingCheckRetries,
+        processingCheckRetries = _ref$processingCheckR === undefined ? ASSET_PROCESSING_CHECK_RETRIES : _ref$processingCheckR,
+        _ref$checkCount = _ref.checkCount,
+        checkCount = _ref$checkCount === undefined ? 0 : _ref$checkCount;
+    http.get('assets/' + id).then(function (response) {
+      return wrapAsset(http, response.data);
+    }, _errorHandler.default).then(function (asset) {
+      if (asset.fields.file[locale].url) {
+        resolve(asset);
+      } else if (checkCount === processingCheckRetries) {
+        var error = new Error();
+        error.name = 'AssetProcessingTimeout';
+        error.message = 'Asset is taking longer then expected to process.';
+        reject(error);
+      } else {
+        checkCount++;
+        setTimeout(function () {
+          return checkIfAssetHasUrl({
+            resolve: resolve,
+            reject: reject,
+            id: id,
+            locale: locale,
+            checkCount: checkCount,
+            processingCheckWait: processingCheckWait,
+            processingCheckRetries: processingCheckRetries
+          });
+        }, processingCheckWait);
+      }
+    });
+  }
+
+  function processForLocale(locale) {
+    var _ref2 = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {},
+        processingCheckWait = _ref2.processingCheckWait,
+        processingCheckRetries = _ref2.processingCheckRetries;
+
+    var assetId = this.sys.id;
+    return http.put('assets/' + this.sys.id + '/files/' + locale + '/process', null, {
+      headers: {
+        'X-Contentful-Version': this.sys.version
+      }
+    }).then(function () {
+      return new Promise(function (resolve, reject) {
+        return checkIfAssetHasUrl({
+          resolve: resolve,
+          reject: reject,
+          id: assetId,
+          locale: locale,
+          processingCheckWait: processingCheckWait,
+          processingCheckRetries: processingCheckRetries
+        });
+      });
+    }, _errorHandler.default);
+  }
+
+  function processForAllLocales() {
+    var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    var self = this;
+    var locales = Object.keys(this.fields.file || {});
+    return Promise.all(locales.map(function (locale) {
+      return processForLocale.call(self, locale, options);
+    })).then(function (assets) {
+      return assets[0];
+    });
+  }
+
+  return {
+    /**
+     * Sends an update to the server with any changes made to the object's properties
+     * @memberof Asset
+     * @func update
+     * @return {Promise<Asset>} Object returned from the server with updated changes.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getAsset('<asset_id>'))
+     * .then((asset) => {
+     *   asset.fields.title['en-US'] = 'New asset title'
+     *   return asset.update()
+     * })
+     * .then((asset) => console.log(`Asset ${asset.sys.id} updated.`)
+     * .catch(console.error)
+    */
+    update: (0, _instanceActions.createUpdateEntity)({
+      http: http,
+      entityPath: 'assets',
+      wrapperMethod: wrapAsset
+    }),
+
+    /**
+     * Deletes this object on the server.
+     * @memberof Asset
+     * @func delete
+     * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getAsset('<asset_id>'))
+     * .then((asset) => asset.delete())
+     * .then((asset) => console.log(`Asset deleted.`)
+     * .catch(console.error)
+     */
+    delete: (0, _instanceActions.createDeleteEntity)({
+      http: http,
+      entityPath: 'assets'
+    }),
+
+    /**
+     * Publishes the object
+     * @memberof Asset
+     * @func publish
+     * @return {Promise<Asset>} Object returned from the server with updated metadata.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getAsset('<asset_id>'))
+     * .then((asset) => asset.publish())
+     * .then((asset) => console.log(`Asset ${asset.sys.id} published.`)
+     * .catch(console.error)
+    */
+    publish: (0, _instanceActions.createPublishEntity)({
+      http: http,
+      entityPath: 'assets',
+      wrapperMethod: wrapAsset
+    }),
+
+    /**
+     * Unpublishes the object
+     * @memberof Asset
+     * @func unpublish
+     * @return {Promise<Asset>} Object returned from the server with updated metadata.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getAsset('<asset_id>'))
+     * .then((asset) => asset.unpublish())
+     * .then((asset) => console.log(`Asset ${asset.sys.id} unpublished.`)
+     * .catch(console.error)
+    */
+    unpublish: (0, _instanceActions.createUnpublishEntity)({
+      http: http,
+      entityPath: 'assets',
+      wrapperMethod: wrapAsset
+    }),
+
+    /**
+     * Archives the object
+     * @memberof Asset
+     * @func archive
+     * @return {Promise<Asset>} Object returned from the server with updated metadata.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getAsset('<asset_id>'))
+     * .then((asset) => asset.archive())
+     * .then((asset) => console.log(`Asset ${asset.sys.id} archived.`)
+     * .catch(console.error)
+    */
+    archive: (0, _instanceActions.createArchiveEntity)({
+      http: http,
+      entityPath: 'assets',
+      wrapperMethod: wrapAsset
+    }),
+
+    /**
+     * Unarchives the object
+     * @memberof Asset
+     * @func unarchive
+     * @return {Promise<Asset>} Object returned from the server with updated metadata.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getAsset('<asset_id>'))
+     * .then((asset) => asset.unarchive())
+     * .then((asset) => console.log(`Asset ${asset.sys.id} unarchived.`)
+     * .catch(console.error)
+    */
+    unarchive: (0, _instanceActions.createUnarchiveEntity)({
+      http: http,
+      entityPath: 'assets',
+      wrapperMethod: wrapAsset
+    }),
+
+    /**
+     * Triggers asset processing after an upload, for the file uploaded to a specific locale.
+     * @memberof Asset
+     * @func processForLocale
+     * @param {string} locale - Locale which processing should be triggered for
+     * @param {object} options - Additional options for processing
+     * @prop {number} options.processingCheckWait - Time in milliseconds to wait before checking again if the asset has been processed (default: 500ms)
+     * @prop {number} options.processingCheckRetries - Maximum amount of times to check if the asset has been processed (default: 5)
+     * @return {Promise<Asset>} Object returned from the server with updated metadata.
+     * @throws {AssetProcessingTimeout} If the asset takes too long to process. If this happens, retrieve the asset again, and if the url property is available, then processing has succeeded. If not, your file might be damaged.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     * client.getSpace('<space_id>')
+     * .then((space) => space.createAssetWithId('<asset_id>', {
+     *   title: {
+     *     'en-US': 'Playsam Streamliner',
+     *   },
+     *   file: {
+     *     'en-US': {
+     *       contentType: 'image/jpeg',
+     *       fileName: 'example.jpeg',
+     *       upload: 'https://example.com/example.jpg'
+     *     }
+     *   }
+     * }))
+     * .then((asset) => asset.processForLocale('en-US'))
+     * .then((asset) => console.log(asset))
+     * .catch(console.error)
+     */
+    processForLocale: processForLocale,
+
+    /**
+     * Triggers asset processing after an upload, for the files uploaded to all locales of an asset.
+     * @memberof Asset
+     * @func processForAllLocales
+     * @param {object} options - Additional options for processing
+     * @prop {number} options.processingCheckWait - Time in milliseconds to wait before checking again if the asset has been processed (default: 500ms)
+     * @prop {number} options.processingCheckRetries - Maximum amount of times to check if the asset has been processed (default: 5)
+     * @return {Promise<Asset>} Object returned from the server with updated metadata.
+     * @throws {AssetProcessingTimeout} If the asset takes too long to process. If this happens, retrieve the asset again, and if the url property is available, then processing has succeeded. If not, your file might be damaged.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     * client.getSpace('<space_id>')
+     * .then((space) => space.createAssetWithId('<asset_id>', {
+     *   title: {
+     *     'en-US': 'Playsam Streamliner',
+     *     'de-DE': 'Playsam Streamliner'
+     *   },
+     *   file: {
+     *     'en-US': {
+     *       contentType: 'image/jpeg',
+     *       fileName: 'example.jpeg',
+     *       upload: 'https://example.com/example.jpg'
+     *     },
+     *     'de-DE': {
+     *       contentType: 'image/jpeg',
+     *       fileName: 'example.jpeg',
+     *       upload: 'https://example.com/example-de.jpg'
+     *     }
+     *   }
+     * }))
+     * .then((asset) => asset.processForAllLocales())
+     * .then((asset) => console.log(asset))
+     * .catch(console.error)
+     */
+    processForAllLocales: processForAllLocales,
+
+    /**
+     * Checks if the asset is published. A published asset might have unpublished changes (@see {Asset.isUpdated})
+     * @memberof Asset
+     * @func isPublished
+     * @return {boolean}
+     */
+    isPublished: (0, _instanceActions.createPublishedChecker)(),
+
+    /**
+     * Checks if the asset is updated. This means the asset was previously published but has unpublished changes.
+     * @memberof Asset
+     * @func isUpdated
+     * @return {boolean}
+     */
+    isUpdated: (0, _instanceActions.createUpdatedChecker)(),
+
+    /**
+     * Checks if the asset is in draft mode. This means it is not published.
+     * @memberof Asset
+     * @func isDraft
+     * @return {boolean}
+     */
+    isDraft: (0, _instanceActions.createDraftChecker)(),
+
+    /**
+     * Checks if asset is archived. This means it's not exposed to the Delivery/Preview APIs.
+     * @memberof Asset
+     * @func isArchived
+     * @return {boolean}
+     */
+    isArchived: (0, _instanceActions.createArchivedChecker)()
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw asset data
+ * @return {Asset} Wrapped asset data
+ */
+
+
+function wrapAsset(http, data) {
+  var asset = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(asset, createAssetApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(asset);
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw asset collection data
+ * @return {AssetCollection} Wrapped asset collection data
+ */
+
+
+function wrapAssetCollection(http, data) {
+  var assets = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  assets.items = assets.items.map(function (entity) {
+    return wrapAsset(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(assets);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../error-handler":"../node_modules/contentful-management/dist/es-modules/error-handler.js","../instance-actions":"../node_modules/contentful-management/dist/es-modules/instance-actions.js"}],"../node_modules/contentful-management/dist/es-modules/entities/editor-interface.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapEditorInterface = wrapEditorInterface;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _errorHandler = _interopRequireDefault(require("../error-handler"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Editor Interface instances
+ * @namespace EditorInterface
+ */
+
+/**
+ * @memberof EditorInterface
+ * @typedef Control
+ * @prop {srting} fieldId - the id of the customized field
+ * @prop {string} widgetId - customization associated to the field
+ */
+
+/**
+ * @memberof EditorInterface
+ * @typedef EditorInterface
+ * @prop {Meta.Sys} sys - System metadata
+ * @prop {EditorInterface.Control[]} controls - array of fields and it's associated widgetId
+ */
+function createEditorInterfaceApi(http) {
+  return {
+    /**
+     * Sends an update to the server with any changes made to the object's properties
+     * @memberof EditorInterface
+     * @func update
+     * @return {Promise<EditorInterface>} Object returned from the server with updated changes.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getContentType('<contentType_id>'))
+     * .then((contentType) => contentType.getEditorInterface())
+     * .then((editorInterface) => {
+     *  editorInterface.controls[0] = { "fieldId": "title", "widgetId": "singleLine"}
+     *  return editorInterface.update()
+     * })
+     * .catch(console.error)
+     */
+    update: function update() {
+      var raw = this.toPlainObject();
+      var data = (0, _cloneDeep.default)(raw);
+      delete data.sys;
+      return http.put('content_types/' + this.sys.contentType.sys.id + '/editor_interface', data, {
+        headers: {
+          'X-Contentful-Version': this.sys.version
+        }
+      }).then(function (response) {
+        return wrapEditorInterface(http, response.data);
+      }, _errorHandler.default);
+    },
+
+    /**
+     * gets a control for a specific field
+     * @memberof EditorInterface
+     * @func getControlForField
+     * @return {?Object} control object for specific field.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getContentType('<contentType_id>'))
+     * .then((contentType) => contentType.getEditorInterface())
+     * .then((editorInterface) => {
+     *  control = editorInterface.getControlForField('<field-id>')
+     *  console.log(control)
+     * })
+     * .catch(console.error)
+     */
+    getControlForField: function getControlForField(fieldId) {
+      var result = this.controls.filter(function (control) {
+        return control.fieldId === fieldId;
+      });
+      return result && result.length > 0 ? result[0] : null;
+    }
+  };
+}
+/**
+* @private
+* @param {Object} http - HTTP client instance
+* @param {Object} data - Raw editor-interface data
+* @return {EditorInterface} Wrapped editor-interface data
+*/
+
+
+function wrapEditorInterface(http, data) {
+  var editorInterface = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(editorInterface, createEditorInterfaceApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(editorInterface);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../error-handler":"../node_modules/contentful-management/dist/es-modules/error-handler.js"}],"../node_modules/contentful-management/dist/es-modules/entities/content-type.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapContentType = wrapContentType;
+exports.wrapContentTypeCollection = wrapContentTypeCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _instanceActions = require("../instance-actions");
+
+var _editorInterface = require("./editor-interface");
+
+var _errorHandler = _interopRequireDefault(require("../error-handler"));
+
+var _snapshot = require("./snapshot");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Content Type instances
+ * @namespace ContentType
+ */
+
+/**
+ * @memberof ContentType
+ * @typedef ContentType
+ * @prop {Meta.Sys} sys - System metadata
+ * @prop {string} name
+ * @prop {string} description
+ * @prop {string} displayField - Field used as the main display field for Entries
+ * @prop {Array<Field>} fields - All the fields contained in this Content Type
+ * @prop {function(): Object} toPlainObject() - Returns this Content Type as a plain JS object
+ */
+function createContentTypeApi(http) {
+  return {
+    /**
+     * Sends an update to the server with any changes made to the object's properties. <br />
+     * <strong>Important note about deleting fields</strong>: The standard way to delete a field is with two updates: first omit the property from your responses (set the field attribute "omitted" to true), and then
+     * delete it by setting the attribute "deleted" to true. See the "Deleting fields" section in the
+     * <a href="https://www.contentful.com/developers/docs/references/content-management-api/#/reference/content-types/content-type">API reference</a> for more reasoning. Alternatively,
+     * you may use the convenience method omitAndDeleteField to do both steps at once.
+     * @memberof ContentType
+     * @func update
+     * @return {Promise<ContentType>} Object returned from the server with updated changes.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getContentType('<contentType_id>'))
+     * .then((contentType) => {
+     *  contentType.name = 'New name'
+     *  return contentType.update()
+     * })
+     * .then(contentType => console.log(contentType))
+     * .catch(console.error)
+     */
+    update: (0, _instanceActions.createUpdateEntity)({
+      http: http,
+      entityPath: 'content_types',
+      wrapperMethod: wrapContentType
+    }),
+
+    /**
+     * Deletes this object on the server.
+     * @memberof ContentType
+     * @func delete
+     * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getContentType('<contentType_id>'))
+     * .then((contentType) => contentType.delete())
+     * .then(() => console.log('contentType deleted'))
+     * .catch(console.error)
+     */
+    delete: (0, _instanceActions.createDeleteEntity)({
+      http: http,
+      entityPath: 'content_types'
+    }),
+
+    /**
+     * Publishes the object
+     * @memberof ContentType
+     * @func publish
+     * @return {Promise<ContentType>} Object returned from the server with updated metadata.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getContentType('<contentType_id>'))
+     * .then((contentType) => contentType.publish())
+     * .then((contentType) => console.log(`${contentType.sys.id} is published`))
+     * .catch(console.error)
+     */
+    publish: (0, _instanceActions.createPublishEntity)({
+      http: http,
+      entityPath: 'content_types',
+      wrapperMethod: wrapContentType
+    }),
+
+    /**
+     * Unpublishes the object
+     * @memberof ContentType
+     * @func unpublish
+     * @return {Promise<ContentType>} Object returned from the server with updated metadata.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getContentType('<contentType_id>'))
+     * .then((contentType) => contentType.unpublish())
+     * .then((contentType) => console.log(`${contentType.sys.id} is unpublished`))
+     * .catch(console.error)
+     */
+    unpublish: (0, _instanceActions.createUnpublishEntity)({
+      http: http,
+      entityPath: 'content_types',
+      wrapperMethod: wrapContentType
+    }),
+
+    /**
+     * Gets the editor interface for the object <br />
+     * <strong>Important note</strong>: The editor interface only represent a published contentType.<br />
+     * To get the most recent representation of the contentType make sure to publish it first
+     * @memberof ContentType
+     * @func getEditorInterface
+     * @return {Promise<EditorInterface.EditorInterface>} Object returned from the server with the current editor interface.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getContentType('<contentType_id>'))
+     * .then((contentType) => contentType.getEditorInterface())
+     * .then((editorInterface) => console.log(editorInterface.contorls))
+     * .catch(console.error)
+     */
+    getEditorInterface: function getEditorInterface() {
+      return http.get('content_types/' + this.sys.id + '/editor_interface').then(function (response) {
+        return (0, _editorInterface.wrapEditorInterface)(http, response.data);
+      }, _errorHandler.default);
+    },
+
+    /**
+     * Gets all snapshots of a contentType
+     * @memberof ContentType
+     * @func getSnapshots
+     * @return Promise<Snapshot>
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getContentType('<contentType_id>'))
+     * .then((entry) => entry.getSnapshots())
+     * .then((snapshots) => console.log(snapshots.items))
+     * .catch(console.error)
+     */
+    getSnapshots: function getSnapshots() {
+      var query = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+      return http.get('content_types/' + this.sys.id + '/snapshots', (0, _contentfulSdkCore.createRequestConfig)({
+        query: query
+      })).then(function (response) {
+        return (0, _snapshot.wrapSnapshotCollection)(http, response.data);
+      }, _errorHandler.default);
+    },
+
+    /**
+     * Gets a snapshot of a contentType
+     * @memberof ContentType
+     * @func getSnapshot
+     * @param {string} snapshotId - Id of the snapshot
+     * @return Promise<Snapshot>
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getContentType('<content_type-id>'))
+     * .then((entry) => entry.getSnapshot('<snapshot-id>'))
+     * .then((snapshot) => console.log(snapshot))
+     * .catch(console.error)
+     */
+    getSnapshot: function getSnapshot(snapshotId) {
+      return http.get('content_types/' + this.sys.id + '/snapshots/' + snapshotId).then(function (response) {
+        return (0, _snapshot.wrapSnapshot)(http, response.data);
+      }, _errorHandler.default);
+    },
+
+    /**
+     * Checks if the contentType is published. A published contentType might have unpublished changes (@see {ContentType.isUpdated})
+     * @memberof ContentType
+     * @func isPublished
+     * @return {boolean}
+     */
+    isPublished: (0, _instanceActions.createPublishedChecker)(),
+
+    /**
+     * Checks if the contentType is updated. This means the contentType was previously published but has unpublished changes.
+     * @memberof ContentType
+     * @func isUpdated
+     * @return {boolean}
+     */
+    isUpdated: (0, _instanceActions.createUpdatedChecker)(),
+
+    /**
+     * Checks if the contentType is in draft mode. This means it is not published.
+     * @memberof ContentType
+     * @func isDraft
+     * @return {boolean}
+     */
+    isDraft: (0, _instanceActions.createDraftChecker)(),
+
+    /**
+     * Omits and deletes a field if it exists on the contentType. This is a convenience method which does both operations at once and potentially less
+     * safe than the standard way. See note about deleting fields on the Update method.
+     * @memberof ContentType
+     * @func omitAndDeleteField
+     * @return {Promise<ContentType>} Object returned from the server with updated metadata.
+     */
+    omitAndDeleteField: function omitAndDeleteField(id) {
+      return this.findAndUpdateField(id, 'omitted', true).then(function (newContentType) {
+        return newContentType.findAndUpdateField(id, 'deleted', true);
+      }).catch(_errorHandler.default);
+    },
+
+    /**
+     * @private
+     * @param {string} id - unique ID of the field
+     * @param {string} key - the attribute on the field to change
+     * @param {string} value - the value to set the attribute to
+     * @return {Promise<ContentType>}
+     */
+    findAndUpdateField: function findAndUpdateField(id, key, value) {
+      var field = this.fields.find(function (field) {
+        return field.id === id;
+      });
+
+      if (!field) {
+        return Promise.reject(new Error('Tried to omitAndDeleteField on a nonexistent field, ' + id + ', on the content type ' + this.name + '.'));
+      }
+
+      field[key] = value;
+      return this.update();
+    }
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw content type data
+ * @return {ContentType} Wrapped content type data
+ */
+
+
+function wrapContentType(http, data) {
+  var contentType = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(contentType, createContentTypeApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(contentType);
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw content type collection data
+ * @return {ContentTypeCollection} Wrapped content type collection data
+ */
+
+
+function wrapContentTypeCollection(http, data) {
+  var contentTypes = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  contentTypes.items = contentTypes.items.map(function (entity) {
+    return wrapContentType(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(contentTypes);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../instance-actions":"../node_modules/contentful-management/dist/es-modules/instance-actions.js","./editor-interface":"../node_modules/contentful-management/dist/es-modules/entities/editor-interface.js","../error-handler":"../node_modules/contentful-management/dist/es-modules/error-handler.js","./snapshot":"../node_modules/contentful-management/dist/es-modules/entities/snapshot.js"}],"../node_modules/contentful-management/dist/es-modules/entities/locale.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapLocale = wrapLocale;
+exports.wrapLocaleCollection = wrapLocaleCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _instanceActions = require("../instance-actions");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Locale instances
+ * @namespace Locale
+ */
+
+/**
+ * @memberof Locale
+ * @typedef Locale
+ * @prop {Meta.Sys} sys - System metadata
+ * @prop {string} name
+ * @prop {string} code - Locale code (example: en-us)
+ * @prop {string} fallbackCode - the locale code to fallback to when there is not content for the current locale
+ * @prop {boolean} contentDeliveryApi - If the content under this locale should be available on the CDA (for public reading)
+ * @prop {boolean} contentManagementApi - If the content under this locale should be available on the CMA (for editing)
+ * @prop {boolean} default - If this is the default locale
+ * @prop {boolean} optional - If the locale needs to be filled in on entries or not
+ * @prop {function(): Object} toPlainObject() - Returns this Locale as a plain JS object
+ */
+function createLocaleApi(http) {
+  return {
+    /**
+     * Sends an update to the server with any changes made to the object's properties
+     * @memberof Locale
+     * @func update
+     * @return {Promise<Locale>} Object returned from the server with updated changes.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getLocale('<locale_id>'))
+     * .then((locale) => {
+     *   locale.name = 'New locale name'
+     *   return locale.update()
+     * })
+     * .then((locale) => console.log(`locale ${locale.sys.id} updated.`))
+     * .catch(console.error)
+     */
+    update: function update() {
+      var locale = this;
+      delete locale.default; // we should not send this back
+
+      return (0, _instanceActions.createUpdateEntity)({
+        http: http,
+        entityPath: 'locales',
+        wrapperMethod: wrapLocale
+      }).call(locale);
+    },
+
+    /**
+     * Deletes this object on the server.
+     * @memberof Locale
+     * @func delete
+     * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getLocale('<locale_id>'))
+     * .then((locale) => locale.delete())
+     * .then(() => console.log(`locale deleted.`))
+     * .catch(console.error)
+     */
+    delete: (0, _instanceActions.createDeleteEntity)({
+      http: http,
+      entityPath: 'locales'
+    })
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw locale data
+ * @return {Locale} Wrapped locale data
+ */
+
+
+function wrapLocale(http, data) {
+  delete data.internal_code;
+  var locale = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(locale, createLocaleApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(locale);
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw locale collection data
+ * @return {LocaleCollection} Wrapped locale collection data
+ */
+
+
+function wrapLocaleCollection(http, data) {
+  var locales = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  locales.items = locales.items.map(function (entity) {
+    return wrapLocale(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(locales);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../instance-actions":"../node_modules/contentful-management/dist/es-modules/instance-actions.js"}],"../node_modules/contentful-management/dist/es-modules/entities/webhook.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapWebhook = wrapWebhook;
+exports.wrapWebhookCollection = wrapWebhookCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _errorHandler = _interopRequireDefault(require("../error-handler"));
+
+var _instanceActions = require("../instance-actions");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Webhook instances
+ * @namespace Webhook
+ */
+
+/**
+ * @memberof Webhook
+ * @typedef Webhook
+ * @prop {Meta.Sys} sys - System metadata
+ * @prop {string} name
+ * @prop {string} url - Url which the webhook will call
+ * @prop {string} httpBasicUsername - Username for basic HTTP authentication
+ * @prop {string} httpBasicPassword - Password for basic HTTP authentication
+ * @prop {object} headers - Key value pairs of additional headers to be sent with every webhook call.
+ * @prop {array} topics - Topics which this webhook should be subscribed to. See https://www.contentful.com/developers/docs/references/content-management-api/#/reference/webhooks/create-a-webhook for more details
+ * @prop {function(): Object} toPlainObject() - Returns this Webhook as a plain JS object
+ */
+function createWebhookApi(http) {
+  return {
+    /**
+     * Sends an update to the server with any changes made to the object's properties
+     * @memberof Webhook
+     * @func update
+     * @return {Promise<Webhook>} Object returned from the server with updated changes.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getWebhook('<webhook_id>'))
+     * .then((webhook) => {
+     *  webhook.name = 'new webhook name'
+     *  return webhook.update()
+     * })
+     * .then((webhook) => console.log(`webhook ${webhook.sys.id} updated.`))
+     * .catch(console.error)
+     */
+    update: (0, _instanceActions.createUpdateEntity)({
+      http: http,
+      entityPath: 'webhook_definitions',
+      wrapperMethod: wrapWebhook
+    }),
+
+    /**
+     * Deletes this object on the server.
+     * @memberof Webhook
+     * @func delete
+     * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getWebhook('<webhook_id>'))
+     * .then((webhook) => webhook.delete())
+     * .then((webhook) => console.log(`webhook ${webhook.sys.id} updated.`))
+     * .catch(console.error)
+     */
+    delete: (0, _instanceActions.createDeleteEntity)({
+      http: http,
+      entityPath: 'webhook_definitions'
+    }),
+
+    /**
+     * List of the most recent webhook calls. See https://www.contentful.com/developers/docs/references/content-management-api/#/reference/webhook-calls/webhook-call-overviews for more details.
+     * @memberof Webhook
+     * @func getCalls
+     * @return {Promise<object>} Promise for list of calls
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getWebhook('<webhook_id>'))
+     * .then((webhook) => webhook.getCalls())
+     * .then((response) => console.log(response.items)) // webhook calls
+     * .catch(console.error)
+     */
+    getCalls: function getCalls() {
+      return http.get('webhooks/' + this.sys.id + '/calls').then(function (response) {
+        return response.data;
+      }, _errorHandler.default);
+    },
+
+    /**
+     * Webhook call with specific id. See https://www.contentful.com/developers/docs/references/content-management-api/#/reference/webhook-calls/webhook-call-overviews for more details
+     * @memberof Webhook
+     * @func getCalls
+     * @return {Promise<object>} Promise for call details
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getWebhook('<webhook_id>'))
+     * .then((webhook) => webhook.getCall(<call-id>))
+     * .then((webhookCall) => console.log(webhookCall))
+     * .catch(console.error)
+     */
+    getCall: function getCall(id) {
+      return http.get('webhooks/' + this.sys.id + '/calls/' + id).then(function (response) {
+        return response.data;
+      }, _errorHandler.default);
+    },
+
+    /**
+     * Overview of the health of webhook calls. See https://www.contentful.com/developers/docs/references/content-management-api/#/reference/webhook-calls/webhook-call-overviews for more details.
+     * @memberof Webhook
+     * @func getHealth
+     * @return {Promise<object>} Promise for health info
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getWebhook('<webhook_id>'))
+     * .then((webhook) => webhook.getHealth())
+     * .then((webhookHealth) => console.log(webhookHealth))
+     * .catch(console.error)
+     */
+    getHealth: function getHealth() {
+      return http.get('webhooks/' + this.sys.id + '/health').then(function (response) {
+        return response.data;
+      }, _errorHandler.default);
+    }
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw webhook data
+ * @return {Webhook} Wrapped webhook data
+ */
+
+
+function wrapWebhook(http, data) {
+  var webhook = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(webhook, createWebhookApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(webhook);
+}
+/**
+ * @memberof Webhook
+ * @typedef WebhookCollection
+ * @prop {number} total
+ * @prop {number} skip
+ * @prop {number} limit
+ * @prop {Array<Webhook.Webhook>} items
+ * @prop {function(): Object} toPlainObject() - Returns this Webhook collection as a plain JS object
+ */
+
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw webhook collection data
+ * @return {WebhookCollection} Wrapped webhook collection data
+ */
+
+
+function wrapWebhookCollection(http, data) {
+  var webhooks = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  webhooks.items = webhooks.items.map(function (entity) {
+    return wrapWebhook(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(webhooks);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../error-handler":"../node_modules/contentful-management/dist/es-modules/error-handler.js","../instance-actions":"../node_modules/contentful-management/dist/es-modules/instance-actions.js"}],"../node_modules/contentful-management/dist/es-modules/entities/space-membership.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapSpaceMembership = wrapSpaceMembership;
+exports.wrapSpaceMembershipCollection = wrapSpaceMembershipCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _instanceActions = require("../instance-actions");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Space Membership instances
+ * @namespace SpaceMembership
+ */
+
+/**
+ * @memberof SpaceMembership
+ * @typedef SpaceMembership
+ * @prop {Meta.Sys} sys - System metadata
+ * @prop {string} name
+ * @prop {boolean} admin - User is an admin
+ * @prop {array} roles - Array of Role Links
+ * @prop {function(): Object} toPlainObject() - Returns this Space Membership as a plain JS object
+ */
+function createSpaceMembershipApi(http) {
+  return {
+    /**
+     * Sends an update to the server with any changes made to the object's properties
+     * @memberof SpaceMembership
+     * @func update
+     * @return {Promise<SpaceMembership>} Object returned from the server with updated changes.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getSpaceMembership('<spaceMembership_id>'))
+     * .then((spaceMembership) => {
+     *  spaceMembership.name = 'new space membership name'
+     * })
+     * .then((spaceMembership) => console.log(`spaceMembership ${spaceMembership.sys.id} updated.`))
+     * .catch(console.error)
+     */
+    update: (0, _instanceActions.createUpdateEntity)({
+      http: http,
+      entityPath: 'space_memberships',
+      wrapperMethod: wrapSpaceMembership
+    }),
+
+    /**
+     * Deletes this object on the server.
+     * @memberof SpaceMembership
+     * @func delete
+     * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getSpaceMembership('<spaceMembership_id>'))
+     * .then((spaceMembership) => spaceMembership.delete())
+     * .then(() => console.log(`spaceMembership deleted.`))
+     * .catch(console.error)
+     */
+    delete: (0, _instanceActions.createDeleteEntity)({
+      http: http,
+      entityPath: 'space_memberships'
+    })
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw space membership data
+ * @return {SpaceMembership} Wrapped space membership data
+ */
+
+
+function wrapSpaceMembership(http, data) {
+  var spaceMembership = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(spaceMembership, createSpaceMembershipApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(spaceMembership);
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw space membership collection data
+ * @return {SpaceMembershipCollection} Wrapped space membership collection data
+ */
+
+
+function wrapSpaceMembershipCollection(http, data) {
+  var spaceMemberships = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  spaceMemberships.items = spaceMemberships.items.map(function (entity) {
+    return wrapSpaceMembership(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(spaceMemberships);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../instance-actions":"../node_modules/contentful-management/dist/es-modules/instance-actions.js"}],"../node_modules/contentful-management/dist/es-modules/entities/role.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapRole = wrapRole;
+exports.wrapRoleCollection = wrapRoleCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _instanceActions = require("../instance-actions");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Role instances
+ * @namespace Role
+ */
+
+/**
+ * See https://www.contentful.com/developers/docs/references/content-management-api/#/reference/roles/create-a-role
+ * @memberof Role
+ * @typedef Role
+ * @prop {Meta.Sys} sys - System metadata
+ * @prop {string} name
+ * @prop {object} permissions - Permissions for application sections
+ * @prop {object} policies
+ * @prop {function(): Object} toPlainObject() - Returns this Role as a plain JS object
+ */
+function createRoleApi(http) {
+  return {
+    /**
+     * Sends an update to the server with any changes made to the object's properties
+     * @memberof Role
+     * @func update
+     * @return {Promise<Role>} Object returned from the server with updated changes.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getRole('<roles_id>'))
+     * .then((roles) => {
+     *   roles.name = 'New role name'
+     *   return roles.update()
+     * })
+     * .then((roles) => console.log(`roles ${roles.sys.id} updated.`))
+     * .catch(console.error)
+     */
+    update: (0, _instanceActions.createUpdateEntity)({
+      http: http,
+      entityPath: 'roles',
+      wrapperMethod: wrapRole
+    }),
+
+    /**
+     * Deletes this object on the server.
+     * @memberof Role
+     * @func delete
+     * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getRole('<role_id>'))
+     * .then((role) => role.delete())
+     * .then((role) => console.log(`role deleted.`))
+     * .catch(console.error)
+     */
+    delete: (0, _instanceActions.createDeleteEntity)({
+      http: http,
+      entityPath: 'roles'
+    })
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw role data
+ * @return {Role} Wrapped role data
+ */
+
+
+function wrapRole(http, data) {
+  var role = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(role, createRoleApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(role);
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw role collection data
+ * @return {RoleCollection} Wrapped role collection data
+ */
+
+
+function wrapRoleCollection(http, data) {
+  var roles = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  roles.items = roles.items.map(function (entity) {
+    return wrapRole(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(roles);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../instance-actions":"../node_modules/contentful-management/dist/es-modules/instance-actions.js"}],"../node_modules/contentful-management/dist/es-modules/entities/api-key.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapApiKey = wrapApiKey;
+exports.wrapApiKeyCollection = wrapApiKeyCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _instanceActions = require("../instance-actions");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Api Key instances
+ * @namespace ApiKey
+ */
+
+/**
+ * @memberof ApiKey
+ * @typedef ApiKey
+ * @prop {Meta.Sys} sys - System metadata
+ * @prop {string} name
+ * @prop {string} description
+ * @prop {function(): Object} toPlainObject() - Returns this Api Key as a plain JS object
+ */
+function createApiKeyApi(http) {
+  return {
+    /**
+     * Sends an update to the server with any changes made to the object's properties
+     * @memberof ApiKey
+     * @func update
+     * @return {Promise<ApiKey>} Object returned from the server with updated changes.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getApiKey(<api-key-id>))
+     * .then((apiKey) => {
+     *  apiKey.name = 'New name'
+     *  return apiKey.update()
+     * })
+     * .then(apiKey => console.log(apiKey.name))
+     * .catch(console.error)
+     */
+    update: function update() {
+      if ('accessToken' in this) {
+        delete this.accessToken;
+      }
+
+      if ('preview_api_key' in this) {
+        delete this.preview_api_key;
+      }
+
+      if ('policies' in this) {
+        delete this.policies;
+      }
+
+      var update = (0, _instanceActions.createUpdateEntity)({
+        http: http,
+        entityPath: 'api_keys',
+        wrapperMethod: wrapApiKey
+      });
+      return update.call(this);
+    },
+
+    /**
+     * Deletes this object on the server.
+     * @memberof ApiKey
+     * @func delete
+     * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getApiKey(<api-key-id>))
+     * .then((apiKey) => apiKey.delete())
+     * .then(() => console.log('apikey deleted'))
+     * .catch(console.error)
+     */
+    delete: (0, _instanceActions.createDeleteEntity)({
+      http: http,
+      entityPath: 'api_keys'
+    })
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw api key data
+ * @return {ApiKey} Wrapped api key data
+ */
+
+
+function wrapApiKey(http, data) {
+  var apiKey = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(apiKey, createApiKeyApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(apiKey);
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw api key collection data
+ * @return {ApiKeyCollection} Wrapped api key collection data
+ */
+
+
+function wrapApiKeyCollection(http, data) {
+  var apiKeys = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  apiKeys.items = apiKeys.items.map(function (entity) {
+    return wrapApiKey(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(apiKeys);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../instance-actions":"../node_modules/contentful-management/dist/es-modules/instance-actions.js"}],"../node_modules/contentful-management/dist/es-modules/entities/preview-api-key.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapPreviewApiKey = wrapPreviewApiKey;
+exports.wrapPreviewApiKeyCollection = wrapPreviewApiKeyCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Preview Api Key instances
+ * @namespace PreviewApiKey
+ */
+
+/**
+ * @memberof PreviewApiKey
+ * @typedef PreviewApiKey
+ * @prop {Meta.Sys} sys - System metadata
+ * @prop {string} name
+ * @prop {string} description
+ * @prop {function(): Object} toPlainObject() - Returns this Preview Api Key as a plain JS object
+ */
+function createPreviewApiKeyApi(http) {
+  return {};
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw api key data
+ * @return {PreviewApiKey} Wrapped preview api key data
+ */
+
+
+function wrapPreviewApiKey(http, data) {
+  var previewApiKey = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(previewApiKey, createPreviewApiKeyApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(previewApiKey);
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw api key collection data
+ * @return {PreviewApiKeyCollection} Wrapped api key collection data
+ */
+
+
+function wrapPreviewApiKeyCollection(http, data) {
+  var previewApiKeys = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  previewApiKeys.items = previewApiKeys.items.map(function (entity) {
+    return wrapPreviewApiKey(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(previewApiKeys);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js"}],"../node_modules/contentful-management/dist/es-modules/entities/upload.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapUpload = wrapUpload;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _instanceActions = require("../instance-actions");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Upload instances
+ * @namespace Upload
+ */
+
+/**
+ * @memberof Upload
+ * @typedef {Upload} Upload
+ * @prop {Object} sys - Standard system metadata with additional asset specific properties
+ * @prop {string} sys.id - The id of the upload
+ * @prop {function(): Promise} delete - Deletes an upload
+ * @prop {function(): Object} toPlainObject - Returns this Asset as a plain JS object
+ */
+function createUploadApi(http) {
+  return {
+    /**
+     * Deletes this object on the server.
+     * @memberof Upload
+     * @func delete
+     * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getUpload('<upload_id>'))
+     * .then((upload) => upload.delete())
+     * .then((upload) => console.log(`upload ${upload.sys.id} updated.`))
+     * .catch(console.error)
+     */
+    delete: (0, _instanceActions.createDeleteEntity)({
+      http: http,
+      entityPath: 'uploads'
+    })
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw upload data
+ * @return {Upload} Wrapped upload data
+ */
+
+
+function wrapUpload(http, data) {
+  var upload = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(upload, createUploadApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(upload);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../instance-actions":"../node_modules/contentful-management/dist/es-modules/instance-actions.js"}],"../node_modules/contentful-management/dist/es-modules/entities/organization.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapOrganizationCollection = wrapOrganizationCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+* This method normalizes each organization in a collection.
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw organization collection data
+ * @return {OrganizationCollection} Normalized organization collection data
+ */
+function wrapOrganizationCollection(http, data) {
+  var organizations = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  return (0, _contentfulSdkCore.freezeSys)(organizations);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js"}],"../node_modules/contentful-management/dist/es-modules/entities/ui-extension.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapUiExtension = wrapUiExtension;
+exports.wrapUiExtensionCollection = wrapUiExtensionCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _instanceActions = require("../instance-actions");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * UI Extension instances
+ * @namespace UiExtension
+ */
+
+/**
+ * @memberof UiExtension
+ * @typedef UiExtension
+ * @prop {Meta.Sys} sys - System metadata
+ * @prop {object} extension - UI Extension config
+ * @prop {string} extension.name - Extension name
+ * @prop {array} extension.fieldTypes - Field types where an extension can be used
+ * @prop {array} extension.src - URL where the root HTML document of the extension can be found
+ * @prop {array} extension.srcdoc - String representation of the extension (e.g. inline HTML code)
+ * @prop {boolean} extension.sidebar - Controls the location of the extension. If true it will be rendered on the sidebar instead of replacing the field's editing control
+ * @prop {function(): Object} toPlainObject() - Returns this UI Extension as a plain JS object
+ */
+function createUiExtensionApi(http) {
+  return {
+    /**
+     * Sends an update to the server with any changes made to the object's properties
+     * @memberof UiExtension
+     * @func update
+     * @return {Promise<UiExtension>} Object returned from the server with updated changes.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getUiExtension('<ui_extension_id>'))
+     * .then((uiExtension) => {
+     *   uiExtension.extension.name = 'New UI Extension name'
+     *   return uiExtension.update()
+     * })
+     * .then((uiExtension) => console.log(`UI Extension ${uiExtension.sys.id} updated.`))
+     * .catch(console.error)
+     */
+    update: (0, _instanceActions.createUpdateEntity)({
+      http: http,
+      entityPath: 'extensions',
+      wrapperMethod: wrapUiExtension
+    }),
+
+    /**
+     * Deletes this object on the server.
+     * @memberof UiExtension
+     * @func delete
+     * @return {Promise} Promise for the deletion. It contains no data, but the Promise error case should be handled.
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *   accessToken: '<content_management_api_key>'
+     * })
+     *
+     * client.getSpace('<space_id>')
+     * .then((space) => space.getUiExtension('<ui_extension_id>'))
+     * .then((uiExtension) => uiExtension.delete())
+     * .then(() => console.log(`UI Extension deleted.`))
+     * .catch(console.error)
+     */
+    delete: (0, _instanceActions.createDeleteEntity)({
+      http: http,
+      entityPath: 'extensions'
+    })
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw UI Extension data
+ * @return {UiExtension} Wrapped UI Extension data
+ */
+
+
+function wrapUiExtension(http, data) {
+  var uiExtension = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(uiExtension, createUiExtensionApi(http));
+  return (0, _contentfulSdkCore.freezeSys)(uiExtension);
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw UI Extension collection data
+ * @return {UiExtensionCollection} Wrapped UI Extension collection data
+ */
+
+
+function wrapUiExtensionCollection(http, data) {
+  var uiExtensions = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  uiExtensions.items = uiExtensions.items.map(function (entity) {
+    return wrapUiExtension(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(uiExtensions);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../instance-actions":"../node_modules/contentful-management/dist/es-modules/instance-actions.js"}],"../node_modules/contentful-management/dist/es-modules/entities/user.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapUser = wrapUser;
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * @memberof User
+ * @typedef User
+ * @prop {Object} sys - System metadata
+ * @prop {string} sys.id - User id
+ * @prop {string} sys.type - Entity type
+ * @prop {string} firstName - User first name
+ * @prop {string} lastName - User last name
+ * @prop {string} avatarUrl - User avatar url
+ * @prop {string} email - User email
+ * @prop {boolean} activated - User activated
+ * @prop {number} signInCount - User sign in count
+ * @prop {boolean} confirmed - User confirmed
+ * @prop {function(): Object} toPlainObject() - Returns this User as a plain JS object
+ */
+
+/*
+ *
+ * @private
+ * */
+function wrapUser(http, data) {
+  var user = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(user, {});
+  return (0, _contentfulSdkCore.freezeSys)(user);
+}
+},{"contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js"}],"../node_modules/contentful-management/dist/es-modules/entities/personal-access-token.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapPersonalAccessToken = wrapPersonalAccessToken;
+exports.wrapPersonalAccessTokenCollection = wrapPersonalAccessTokenCollection;
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _enhanceWithMethods = _interopRequireDefault(require("../enhance-with-methods"));
+
+var _errorHandler = _interopRequireDefault(require("../error-handler"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Personal access token
+ * @namespace PersonalAccessToken
+ * */
+function createPersonalAccessToken(http) {
+  return {
+    /**
+     * Revokes a personal access token
+     * @memberof PersonalAccessToken
+     * @func revoke
+     * @return {Promise<PersonalAccessToken>} Object the revoked personal access token
+     * @example
+     * const contentful = require('contentful-management')
+     *
+     * const client = contentful.createClient({
+     *  accessToken: <content_management_api_key>
+     * })
+     *
+     * client.getPersonalAccessToken('<token-id>')
+     *  .then((personalAccessToken) => {
+     *    return personalAccessToken.revoke()
+     *  })
+     *  .catch(console.error)
+     */
+    revoke: function revoke() {
+      var baseURL = http.defaults.baseURL.replace('/spaces/', '/users/me/access_tokens');
+      return http.put(this.sys.id + '/revoked', null, {
+        baseURL: baseURL
+      }).then(function (response) {
+        return response.data;
+      }, _errorHandler.default);
+    }
+  };
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw  personal access token data
+ * @return {PersonalAccessToken} Wrapped personal access token
+ */
+
+
+function wrapPersonalAccessToken(http, data) {
+  var personalAccessToken = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  (0, _enhanceWithMethods.default)(personalAccessToken, createPersonalAccessToken(http));
+  return (0, _contentfulSdkCore.freezeSys)(personalAccessToken);
+}
+/**
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw personal access collection data
+ * @return {PersonalAccessTokenCollection} Wrapped personal access token collection data
+ */
+
+
+function wrapPersonalAccessTokenCollection(http, data) {
+  var personalAccessTokens = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  personalAccessTokens.items = personalAccessTokens.items.map(function (entity) {
+    return wrapPersonalAccessToken(http, entity);
+  });
+  return (0, _contentfulSdkCore.freezeSys)(personalAccessTokens);
+}
+},{"lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","../enhance-with-methods":"../node_modules/contentful-management/dist/es-modules/enhance-with-methods.js","../error-handler":"../node_modules/contentful-management/dist/es-modules/error-handler.js"}],"../node_modules/contentful-management/dist/es-modules/entities/usage-period.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapUsagePeriodCollection = wrapUsagePeriodCollection;
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * UsagePeriod
+ * @namespace UsagePeriod
+ */
+
+/**
+ * @memberof UsagePeriod
+ * @typedef UsagePeriod
+ * @prop {Object} sys - System metadata
+ * @prop {string} sys.id - User id
+ * @prop {string} sys.type - Entity type, UsagePeriod
+ * @prop {string} startDate - Start date of usage period
+ * @prop {string} endDate - End date of usage period. Will be null for current period
+ */
+
+/**
+ * @memberof UsagePeriod
+ * @typedef UsagePeriodCollection
+ * @prop {number} total
+ * @prop {number} skip
+ * @prop {number} limit
+ * @prop {Object} sys
+ * @prop {Array<UsagePeriod.UsagePeriod>} items
+ * @prop {function(): Object} toPlainObject() - Returns this Space collection as a plain JS object
+ */
+
+/**
+* This method normalizes each organization in a collection.
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw usage period collection data
+ * @return {UsagePeriod.UsagePeriodCollection} Normalized usage period collection data
+ */
+function wrapUsagePeriodCollection(http, data) {
+  var usagePeriods = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  return (0, _contentfulSdkCore.freezeSys)(usagePeriods);
+}
+},{"contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js"}],"../node_modules/contentful-management/dist/es-modules/entities/usage.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.wrapUsageCollection = wrapUsageCollection;
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Usages
+ * @namespace Usage
+ */
+
+/**
+ * @memberof Usage
+ * @typedef Usage
+ * @prop {Object} sys - System metadata
+ * @prop {string} sys.id - User id in form {usagePeriod}_{orgID or spaceID}
+ * @prop {string} sys.type - Entity type, ApiUsage
+ * @prop {Object} sys.usagePeriod - Link to <UsagePeriod>
+ * @prop {Object} organization - optional, depends on type of usage requested. Link to org
+ * @prop {Object} space - optional, depends on type of usage requested. Link to space
+ * @prop {string} unitOfMeasure
+ * @prop {string} interval
+ * @prop {string} startDate
+ * @prop {string} endDate
+ * @prop {Array<number>} usage
+ */
+
+/**
+ * @memberof Usage
+ * @typedef UsageCollection
+ * @prop {number} total
+ * @prop {number} skip
+ * @prop {number} limit
+ * @prop {Object} sys
+ * @prop {Array<Usage.Usage>} items
+ * @prop {function(): Object} toPlainObject() - Returns this Space collection as a plain JS object
+ */
+
+/**
+* This method normalizes each organization in a collection.
+ * @private
+ * @param {Object} http - HTTP client instance
+ * @param {Object} data - Raw usage period collection data
+ * @return {Usage.UsageCollection} Normalized usage period collection data
+ */
+function wrapUsageCollection(http, data) {
+  var usages = (0, _contentfulSdkCore.toPlainObject)((0, _cloneDeep.default)(data));
+  return (0, _contentfulSdkCore.freezeSys)(usages);
+}
+},{"contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js"}],"../node_modules/contentful-management/dist/es-modules/entities/index.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+
+var space = _interopRequireWildcard(require("./space"));
+
+var environment = _interopRequireWildcard(require("./environment"));
+
+var entry = _interopRequireWildcard(require("./entry"));
+
+var asset = _interopRequireWildcard(require("./asset"));
+
+var contentType = _interopRequireWildcard(require("./content-type"));
+
+var editorInterface = _interopRequireWildcard(require("./editor-interface"));
+
+var locale = _interopRequireWildcard(require("./locale"));
+
+var webhook = _interopRequireWildcard(require("./webhook"));
+
+var spaceMembership = _interopRequireWildcard(require("./space-membership"));
+
+var role = _interopRequireWildcard(require("./role"));
+
+var apiKey = _interopRequireWildcard(require("./api-key"));
+
+var previewApiKey = _interopRequireWildcard(require("./preview-api-key"));
+
+var upload = _interopRequireWildcard(require("./upload"));
+
+var organization = _interopRequireWildcard(require("./organization"));
+
+var uiExtension = _interopRequireWildcard(require("./ui-extension"));
+
+var snapshot = _interopRequireWildcard(require("./snapshot"));
+
+var user = _interopRequireWildcard(require("./user"));
+
+var personalAccessToken = _interopRequireWildcard(require("./personal-access-token"));
+
+var usagePeriod = _interopRequireWildcard(require("./usage-period"));
+
+var usage = _interopRequireWildcard(require("./usage"));
+
+function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) { var desc = Object.defineProperty && Object.getOwnPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : {}; if (desc.get || desc.set) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } } newObj.default = obj; return newObj; } }
+
+var _default = {
+  space: space,
+  environment: environment,
+  entry: entry,
+  asset: asset,
+  contentType: contentType,
+  editorInterface: editorInterface,
+  locale: locale,
+  webhook: webhook,
+  spaceMembership: spaceMembership,
+  role: role,
+  apiKey: apiKey,
+  previewApiKey: previewApiKey,
+  upload: upload,
+  organization: organization,
+  uiExtension: uiExtension,
+  snapshot: snapshot,
+  user: user,
+  personalAccessToken: personalAccessToken,
+  usagePeriod: usagePeriod,
+  usage: usage
+};
+exports.default = _default;
+},{"./space":"../node_modules/contentful-management/dist/es-modules/entities/space.js","./environment":"../node_modules/contentful-management/dist/es-modules/entities/environment.js","./entry":"../node_modules/contentful-management/dist/es-modules/entities/entry.js","./asset":"../node_modules/contentful-management/dist/es-modules/entities/asset.js","./content-type":"../node_modules/contentful-management/dist/es-modules/entities/content-type.js","./editor-interface":"../node_modules/contentful-management/dist/es-modules/entities/editor-interface.js","./locale":"../node_modules/contentful-management/dist/es-modules/entities/locale.js","./webhook":"../node_modules/contentful-management/dist/es-modules/entities/webhook.js","./space-membership":"../node_modules/contentful-management/dist/es-modules/entities/space-membership.js","./role":"../node_modules/contentful-management/dist/es-modules/entities/role.js","./api-key":"../node_modules/contentful-management/dist/es-modules/entities/api-key.js","./preview-api-key":"../node_modules/contentful-management/dist/es-modules/entities/preview-api-key.js","./upload":"../node_modules/contentful-management/dist/es-modules/entities/upload.js","./organization":"../node_modules/contentful-management/dist/es-modules/entities/organization.js","./ui-extension":"../node_modules/contentful-management/dist/es-modules/entities/ui-extension.js","./snapshot":"../node_modules/contentful-management/dist/es-modules/entities/snapshot.js","./user":"../node_modules/contentful-management/dist/es-modules/entities/user.js","./personal-access-token":"../node_modules/contentful-management/dist/es-modules/entities/personal-access-token.js","./usage-period":"../node_modules/contentful-management/dist/es-modules/entities/usage-period.js","./usage":"../node_modules/contentful-management/dist/es-modules/entities/usage.js"}],"../node_modules/contentful-management/dist/es-modules/create-contentful-api.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = createClientApi;
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _errorHandler = _interopRequireDefault(require("./error-handler"));
+
+var _entities = _interopRequireDefault(require("./entities"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/**
+ * Contentful Management API Client. Contains methods which allow access to
+ * any operations that can be performed with a management token.
+ * @namespace ContentfulClientAPI
+ */
+
+/**
+ * Types for meta information found across the different entities in Contentful
+ * @namespace Meta
+ */
+
+/**
+ * System metadata. See <a href="https://www.contentful.com/developers/docs/references/content-delivery-api/#/introduction/common-resource-attributes">Common Resource Attributes</a> for more details.
+ * @memberof Meta
+ * @typedef Sys
+ * @prop {string} type
+ * @prop {string} id
+ * @prop {Meta.Link} space
+ * @prop {string} createdAt
+ * @prop {string} updatedAt
+ * @prop {number} revision
+ */
+
+/**
+ * Link to another entity. See <a href="https://www.contentful.com/developers/docs/concepts/links/">Links</a> for more details.
+ * @memberof Meta
+ * @typedef Link
+ * @prop {string} type - type of this entity. Always link.
+ * @prop {string} id
+ * @prop {string} linkType - type of this link. If defined, either Entry or Asset
+ */
+
+/**
+ * @memberof ContentfulClientAPI
+ * @typedef {Object} ClientAPI
+ * @prop {function} getSpace
+ * @prop {function} getSpaces
+ * @prop {function} createSpace
+ * @prop {function} createPersonalAccessToken
+ * @prop {function} getCurrentUser
+ * @prop {function} getPersonalAccessTokens
+ * @prop {function} getPersonalAccessToken
+ * @prop {function} getOrganizations
+ * @prop {function} rawRequest
+ * @prop {function} getUsagePeriods
+ * @prop {function} getUsages
+ */
+
+/**
+ * Creates API object with methods to access functionality from Contentful's
+ * Management API
+ * @private
+ * @param {Object} params - API initialization params
+ * @prop {Object} http - HTTP client instance
+ * @prop {Function} shouldLinksResolve - Link resolver preconfigured with global setting
+ * @return {ClientAPI}
+ */
+function createClientApi(_ref) {
+  var http = _ref.http;
+  var _entities$space = _entities.default.space,
+      wrapSpace = _entities$space.wrapSpace,
+      wrapSpaceCollection = _entities$space.wrapSpaceCollection;
+  var wrapUser = _entities.default.user.wrapUser;
+  var _entities$personalAcc = _entities.default.personalAccessToken,
+      wrapPersonalAccessToken = _entities$personalAcc.wrapPersonalAccessToken,
+      wrapPersonalAccessTokenCollection = _entities$personalAcc.wrapPersonalAccessTokenCollection;
+  var wrapOrganizationCollection = _entities.default.organization.wrapOrganizationCollection;
+  var wrapUsagePeriodCollection = _entities.default.usagePeriod.wrapUsagePeriodCollection;
+  var wrapUsageCollection = _entities.default.usage.wrapUsageCollection;
+  /**
+   * Gets all spaces
+   * @memberof ContentfulClientAPI
+   * @return {Promise<Space.SpaceCollection>} Promise for a collection of Spaces
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpaces()
+   * .then((response) => console.log(response.items))
+   * .catch(console.error)
+   */
+
+  function getSpaces() {
+    var query = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    return http.get('', (0, _contentfulSdkCore.createRequestConfig)({
+      query: query
+    })).then(function (response) {
+      return wrapSpaceCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a space
+   * @memberof ContentfulClientAPI
+   * @param {string} id - Space ID
+   * @return {Promise<Space.Space>} Promise for a Space
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getSpace('<space_id>')
+   * .then((space) => console.log(space))
+   * .catch(console.error)
+   */
+
+
+  function getSpace(id) {
+    return http.get(id).then(function (response) {
+      return wrapSpace(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a space
+   * @memberof ContentfulClientAPI
+   * @see {Space.Space}
+   * @param {object} data - Object representation of the Space to be created
+   * @param {string=} organizationId - Organization ID, if the associated token can manage more than one organization.
+   * @return {Promise<Space.Space>} Promise for the newly created Space
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.createSpace({
+   *   name: 'Name of new space'
+   * })
+   * .then((space) => console.log(space))
+   * .catch(console.error)
+   */
+
+
+  function createSpace(data, organizationId) {
+    return http.post('', data, {
+      headers: organizationId ? {
+        'X-Contentful-Organization': organizationId
+      } : {}
+    }).then(function (response) {
+      return wrapSpace(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of Organizations
+   * @memberof ContentfulClientAPI
+   * @return {Promise<OrganizationCollection>} Promise for a collection of Organizations
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getOrganizations()
+   * .then(result => console.log(result.items))
+   * .catch(console.error)
+   */
+
+
+  function getOrganizations() {
+    var baseURL = http.defaults.baseURL.replace('/spaces/', '/organizations/');
+    return http.get('', {
+      baseURL: baseURL
+    }).then(function (response) {
+      return wrapOrganizationCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of usage periods for the organization.
+   * @memberof ContentfulClientAPI
+   * @param {string} organizationId - id of organization
+   * @return {Promise<UsagePeriod.UsagePeriodCollection>} Promise for a collection of usage periods
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getUsagePeriods('<organizationId>')
+   * .then(result => console.log(result.items))
+   * .catch(console.error)
+   */
+
+
+  function getUsagePeriods(organizationId) {
+    var baseURL = http.defaults.baseURL.replace('/spaces/', '/organizations/' + organizationId + '/usage_periods');
+    var headers = {
+      'x-contentful-enable-alpha-feature': 'usage-insights'
+    };
+    return http.get('', {
+      baseURL: baseURL,
+      headers: headers
+    }).then(function (response) {
+      return wrapUsagePeriodCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a collection of usages for the organization.
+   * @memberof ContentfulClientAPI
+   * @param {string} organizationId
+   * @param {string} type - either 'organization' or 'space', type of usages to be returned
+   * @param {Object<{filters:{metric: string, usagePeriod: string}, orderBy:{metricUsage: string}}>} query - Object with search params.
+   * 'filters[metric]' is a required field, possible values are one of 'cda', 'cma', 'cpa', 'all_apis'.
+   * 'filters[usagePeriod]' is also required, it's the ID of the usage period.
+   * 'orderBy[metricUsage]' is optional, value can be asc or desc. It orders resources in response's 'items' array by total usage
+   * @return {Promise<Usage.UsageCollection>} Promise for a collection of usage
+   * @example
+   *
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getUsages('<organizationId>', 'space', {
+   *    'filters[metric]': 'cda', // required
+   *    'filters[usagePeriod]': '1234', // required
+   *    'orderBy[metricUsage]': 'asc'
+   * })
+   * .then(result => console.log(result.items))
+   * .catch(console.error)
+   */
+
+
+  function getUsages(organizationId, type) {
+    var query = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+    if (!(query['filters[metric]'] && query['filters[usagePeriod]'])) {
+      return Promise.reject(new Error('Missing either filters[metric] or filters[usagePeriod] in usages query.'));
+    }
+
+    var baseURL = http.defaults.baseURL.replace('/spaces/', '/organizations/' + organizationId + '/usages/' + type);
+    var headers = {
+      'x-contentful-enable-alpha-feature': 'usage-insights'
+    };
+    return http.get('', {
+      baseURL: baseURL,
+      headers: headers,
+      params: (0, _contentfulSdkCore.createRequestConfig)({
+        query: query
+      }).params
+    }).then(function (response) {
+      return wrapUsageCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets the authenticated user
+   * @memberof ContentfulClientAPI
+   * @return {Promise<User>} Promise for a User
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getCurrentUser()
+   * .then(user => console.log(user.firstName))
+   * .catch(console.error)
+   */
+
+
+  function getCurrentUser() {
+    var baseURL = http.defaults.baseURL.replace('/spaces/', '/users/me/');
+    return http.get('', {
+      baseURL: baseURL
+    }).then(function (response) {
+      return wrapUser(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Creates a personal access token
+   * @memberof ContentfulClientAPI
+   * @param {Object} data - personal access token config
+   * @return {Promise<User>} Promise for a Token
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.createPersonalAccessToken(
+   *  {
+   *    "name": "My Token",
+   *    "scope": [
+   *      "content_management_manage"
+   *    ]
+   *  }
+   * )
+   * .then(personalAccessToken => console.log(personalAccessToken.token))
+   * .catch(console.error)
+   */
+
+
+  function createPersonalAccessToken(data) {
+    var baseURL = http.defaults.baseURL.replace('/spaces/', '/users/me/access_tokens');
+    return http.post('', data, {
+      baseURL: baseURL
+    }).then(function (response) {
+      return wrapPersonalAccessToken(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets a personal access token
+   * @memberof ContentfulClientAPI
+   * @param {Object} data - personal access token config
+   * @return {Promise<User>} Promise for a Token
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getPersonalAccessToken(tokenId)
+   * .then(token => console.log(token.token))
+   * .catch(console.error)
+   */
+
+
+  function getPersonalAccessToken(tokenId) {
+    var baseURL = http.defaults.baseURL.replace('/spaces/', '/users/me/access_tokens');
+    return http.post(tokenId, {
+      baseURL: baseURL
+    }).then(function (response) {
+      return wrapPersonalAccessToken(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Gets all personal access tokens
+   * @memberof ContentfulClientAPI
+   * @return {Promise<User>} Promise for a Token
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.getPersonalAccessTokens()
+   * .then(response => console.log(reponse.items))
+   * .catch(console.error)
+   */
+
+
+  function getPersonalAccessTokens() {
+    var baseURL = http.defaults.baseURL.replace('/spaces/', '/users/me/access_tokens');
+    return http.get('', {
+      baseURL: baseURL
+    }).then(function (response) {
+      return wrapPersonalAccessTokenCollection(http, response.data);
+    }, _errorHandler.default);
+  }
+  /**
+   * Make a custom request to the Contentful management API's /spaces endpoint
+   * @memberof ContentfulClientAPI
+   * @param {Object} opts - axios request options (https://github.com/mzabriskie/axios)
+   * @return {Promise<Object>} Promise for the response data
+   * @example
+   * const contentful = require('contentful-management')
+   *
+   * const client = contentful.createClient({
+   *   accessToken: '<content_management_api_key>'
+   * })
+   *
+   * client.rawRequest({
+   *   method: 'GET',
+   *   url: '/custom/path'
+   * })
+   * .then((responseData) => console.log(responseData))
+   * .catch(console.error)
+   */
+
+
+  function rawRequest(opts) {
+    return http(opts).then(function (response) {
+      return response.data;
+    }, _errorHandler.default);
+  }
+
+  return {
+    getSpaces: getSpaces,
+    getSpace: getSpace,
+    createSpace: createSpace,
+    getOrganizations: getOrganizations,
+    getCurrentUser: getCurrentUser,
+    createPersonalAccessToken: createPersonalAccessToken,
+    getPersonalAccessToken: getPersonalAccessToken,
+    getPersonalAccessTokens: getPersonalAccessTokens,
+    rawRequest: rawRequest,
+    getUsagePeriods: getUsagePeriods,
+    getUsages: getUsages
+  };
+}
+},{"contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","./error-handler":"../node_modules/contentful-management/dist/es-modules/error-handler.js","./entities":"../node_modules/contentful-management/dist/es-modules/entities/index.js"}],"../node_modules/contentful-management/dist/es-modules/contentful-management.js":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createClient = createClient;
+
+var _axios = _interopRequireDefault(require("axios"));
+
+var _cloneDeep = _interopRequireDefault(require("lodash/cloneDeep"));
+
+var _contentfulSdkCore = require("contentful-sdk-core");
+
+var _createContentfulApi = _interopRequireDefault(require("./create-contentful-api"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var _extends = Object.assign || function (target) {
+  for (var i = 1; i < arguments.length; i++) {
+    var source = arguments[i];
+
+    for (var key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        target[key] = source[key];
+      }
+    }
+  }
+
+  return target;
+};
+/**
+ * Contentful Management API SDK. Allows you to create instances of a client
+ * with access to the Contentful Content Management API.
+ * @namespace contentfulManagement
+ * @see ContentfulClientAPI
+ */
+
+
+/**
+ * Create a client instance
+ * @func
+ * @name createClient
+ * @memberof contentfulManagement
+ * @param {object} params - Client initialization parameters
+ * @prop {string=} params.accessToken - Contentful CDA Access Token
+ * @prop {boolean=?} params.insecure - Requests will be made over http instead of the default https (default: false)
+ * @prop {boolean=?} params.retryOnError - If we should retry on errors and 429 rate limit exceptions (default: true)
+ * @prop {string=?} params.host - API host (default: api.contentful.com)
+ * @prop {string=?} params.hostUpload - direct file upload host (default : upload.contentful.com)
+ * @prop {Object=?} params.httpAgent - Optional Node.js HTTP agent for proxying (see <a href="https://nodejs.org/api/http.html#http_class_http_agent">Node.js docs</a> and <a href="https://www.npmjs.com/package/https-proxy-agent">https-proxy-agent</a>)
+ * @prop {Object=?} params.httpsAgent - Optional Node.js HTTP agent for proxying (see <a href="https://nodejs.org/api/http.html#http_class_http_agent">Node.js docs</a> and <a href="https://www.npmjs.com/package/https-proxy-agent">https-proxy-agent</a>)
+ * @prop {Object=?} params.proxy - Optional Axios proxy (see <a href="https://github.com/mzabriskie/axios#request-config"> axios docs </a>)
+ * @prop {object=?} params.headers - Optional additional headers
+ * @prop {function=} params.logHandler - A log handler function to process given log messages & errors. Receives the log level (error, warning & info) and the actual log data (Error object or string). (The default can be found at: https://github.com/contentful/contentful-sdk-core/blob/master/lib/create-http-client.js)
+ * @prop {string=?} params.application - Application name and version e.g myApp/version
+ * @prop {string=?} params.integration - Integration name and version e.g react/version
+ * @prop {number=} params.timeout - Optional number of milliseconds before the request times out. Default is 30000
+ * @prop {number=} params.maxContentLength - Optional maximum content length in bytes (default: 1073741824 i.e. 1GB)
+ * @returns {ContentfulClientAPI.ClientAPI}
+ * @example
+ * const client = contentfulManagement.createClient({
+ *  accessToken: 'myAccessToken'
+ * })
+ */
+function createClient(params) {
+  var defaultParameters = {
+    defaultHostname: 'api.contentful.com',
+    defaultHostnameUpload: 'upload.contentful.com'
+  };
+  var userAgentHeader = (0, _contentfulSdkCore.getUserAgentHeader)('contentful-management.js/' + '5.2.1', params.application, params.integration, params.feature);
+  var requiredHeaders = {
+    'Content-Type': 'application/vnd.contentful.management.v1+json',
+    'X-Contentful-User-Agent': userAgentHeader
+  };
+  params = _extends({}, defaultParameters, (0, _cloneDeep.default)(params));
+
+  if (!params.accessToken) {
+    throw new TypeError('Expected parameter accessToken');
+  }
+
+  params.headers = _extends({}, params.headers, requiredHeaders);
+  var http = (0, _contentfulSdkCore.createHttpClient)(_axios.default, params);
+  var api = (0, _createContentfulApi.default)({
+    http: http
+  });
+  return api;
+}
+},{"axios":"../node_modules/axios/index.js","lodash/cloneDeep":"../node_modules/lodash/cloneDeep.js","contentful-sdk-core":"../node_modules/contentful-sdk-core/index.es-modules.js","./create-contentful-api":"../node_modules/contentful-management/dist/es-modules/create-contentful-api.js"}],"js/utils/api.js":[function(require,module,exports) {
 "use strict";
 
 var _config = _interopRequireDefault(require("../../../config"));
 
+var _contentfulManagement = require("contentful-management");
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-console.log(_config.default);
-},{"../../../config":"../config.js"}],"js/pages/home.jsx":[function(require,module,exports) {
+var client = (0, _contentfulManagement.createClient)({
+  accessToken: _config.default.CONTENTFUL_ACCESS_TOKEN
+});
+},{"../../../config":"../config.js","contentful-management":"../node_modules/contentful-management/dist/es-modules/contentful-management.js"}],"js/pages/home.jsx":[function(require,module,exports) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -38184,7 +50073,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "59710" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "50836" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};
